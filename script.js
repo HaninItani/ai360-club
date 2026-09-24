@@ -1339,7 +1339,10 @@ function renderChat() {
 
 
 function formatAssistantText(value) {
-  let html = escape(value || '');
+  // Models sometimes escape Markdown punctuation (for example `1\.`).
+  // Normalize those harmless escapes before HTML escaping so lists render naturally.
+  const normalized = String(value || '').replace(/\\([\\`*_[\]{}()#+\-.!>])/g, '$1');
+  let html = escape(normalized);
 
   // Lightweight, safe Markdown rendering for normal assistant replies.
   html = html
