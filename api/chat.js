@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import OpenAI from 'openai';
+import OpenAI, { toFile } from 'openai';
 import { actor, db, fail } from '../lib/server.js';
 
 const BASE = `You are AI360, a natural, capable general-purpose AI assistant used inside a supervised elementary AI club. Respond like a polished modern AI assistant: conversational, direct, helpful, context-aware, and flexible. Do not force lessons, missions, quizzes, or classroom language unless the user asks for them. Answer the actual request first. Use clear Markdown when it improves readability. Keep simple questions concise and give fuller explanations when useful. Preserve context from the conversation. Never be childish or patronizing. Do not ask for private details such as passwords, home addresses, phone numbers, school logins, or other sensitive personal information. If such information is shared, do not repeat it. Acknowledge uncertainty when appropriate.`;
@@ -18,6 +18,17 @@ const asksForImage = value => {
   const text = String(value || '').toLowerCase();
   return /\b(generate|create|make|draw|design|illustrate|show me|picture of|image of|photo of|poster of|logo of)\b/.test(text) &&
     /\b(image|picture|photo|drawing|illustration|poster|logo|art|artwork|character|scene|wallpaper|sticker|icon)\b/.test(text);
+};
+
+// Follow-up edits often do not repeat the word "image" (for example: "remove the heart and put a star").
+// If this conversation already contains an image, treat clear visual-change language as an image edit.
+const asksToEditPreviousImage = value => {
+  const text = String(value || '').trim().toLowerCase();
+  if (!text) return false;
+  if (/\b(same|previous|last|that|this)\s+(image|picture|photo|drawing|poster|logo)\b/.test(text)) return true;
+  if (/\b(edit|modify|redesign|restyle|recolor)\b/.test(text)) return true;
+  return /\b(remove|delete|erase|replace|swap|add|put|change|turn|make)\b/.test(text) &&
+    /\b(background|color|colour|heart|star|robot|alien|object|character|clothes|outfit|hat|hair|eyes|face|sky|planet|text|word|logo|shirt|dress|backpack|scene|lighting)\b/.test(text);
 };
 
 export default async function handler(req, res) {
@@ -54,16 +65,18 @@ export default async function handler(req, res) {
 
     const { data: prior, error: priorError } = await client
       .from('messages')
-      .select('role,content')
+      .select('role,content,image_url')
       .eq('conversation_id', conv.id)
       .order('created_at', { ascending: false })
       .limit(40);
     if (priorError) throw priorError;
 
+    const history = prior.reverse();
     const input = [
-      ...prior.reverse().map(m => ({ role: m.role, content: m.content })),
+      ...history.map(m => ({ role: m.role, content: m.content })),
       { role: 'user', content: message.trim() }
     ];
+    const previousImage = [...history].reverse().find(m => m.image_url)?.image_url || null;
 
     const ai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const model = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
@@ -74,16 +87,38 @@ export default async function handler(req, res) {
       max_output_tokens: 1400
     };
 
-    // Generate images naturally when the student asks for one, or when the image button is enabled.
-    // A dedicated image model keeps the normal GPT-5.6 Luna chat fast and inexpensive.
-    const shouldGenerateImage = Boolean(wantsImage) || asksForImage(message);
-    if (shouldGenerateImage) {
-      const imageResponse = await ai.images.generate({
-        model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2',
-        prompt: message.trim(),
-        size: '1024x1024',
-        quality: 'low'
-      });
+    // Image requests behave conversationally: create a new image, or actually edit the latest image.
+    // Never claim an edit is complete unless a new image asset was successfully produced.
+    const shouldEditImage = Boolean(previousImage) && asksToEditPreviousImage(message);
+    const shouldGenerateImage = !shouldEditImage && (Boolean(wantsImage) || asksForImage(message));
+
+    if (shouldEditImage || shouldGenerateImage) {
+      const imageModel = process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2';
+      let imageResponse;
+
+      if (shouldEditImage) {
+        const { data: previousBlob, error: downloadError } = await client.storage
+          .from('ai360-images')
+          .download(previousImage);
+        if (downloadError || !previousBlob) throw downloadError || new Error('Previous image could not be loaded');
+
+        const previousBytes = Buffer.from(await previousBlob.arrayBuffer());
+        const previousFile = await toFile(previousBytes, 'previous-image.png', { type: 'image/png' });
+        imageResponse = await ai.images.edit({
+          model: imageModel,
+          image: previousFile,
+          prompt: `Edit the provided image according to this request: ${message.trim()} Preserve everything else from the original image as closely as possible unless the request requires changing it.`,
+          size: '1024x1024',
+          quality: 'low'
+        });
+      } else {
+        imageResponse = await ai.images.generate({
+          model: imageModel,
+          prompt: message.trim(),
+          size: '1024x1024',
+          quality: 'low'
+        });
+      }
 
       const base64 = imageResponse.data?.[0]?.b64_json;
       if (!base64) throw new Error('Image model returned no image data');
@@ -94,7 +129,9 @@ export default async function handler(req, res) {
         .upload(imagePath, Buffer.from(base64, 'base64'), { contentType: 'image/png' });
       if (uploadError) throw uploadError;
 
-      const text = 'Here is the image I created for you.';
+      const text = shouldEditImage
+        ? 'Done — here is the updated image.'
+        : 'Here is the image I created for you.';
       const { error: saveError } = await client.from('messages').insert([
         { conversation_id: conv.id, role: 'user', content: message.trim() },
         { conversation_id: conv.id, role: 'assistant', content: text, image_url: imagePath }
