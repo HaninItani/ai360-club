@@ -15,6 +15,11 @@ const state = {
   adminLogin: false
 };
 
+
+// ========================================
+// HELPERS
+// ========================================
+
 const escape = s =>
   String(s ?? '').replace(
     /[&<>"']/g,
@@ -28,6 +33,7 @@ const escape = s =>
       })[c]
   );
 
+
 async function api(path, options = {}) {
   const r = await fetch(path, {
     credentials: 'same-origin',
@@ -38,7 +44,13 @@ async function api(path, options = {}) {
     }
   });
 
-  const data = await r.json();
+  let data;
+
+  try {
+    data = await r.json();
+  } catch {
+    data = {};
+  }
 
   if (!r.ok) {
     throw Error(data.error || 'Request failed');
@@ -46,6 +58,7 @@ async function api(path, options = {}) {
 
   return data;
 }
+
 
 const get = (action, params = {}) =>
   api(
@@ -56,7 +69,8 @@ const get = (action, params = {}) =>
       })
   );
 
-const post = (action, data) =>
+
+const post = (action, data = {}) =>
   api('/api/app', {
     method: 'POST',
     body: JSON.stringify({
@@ -64,6 +78,7 @@ const post = (action, data) =>
       ...data
     })
   });
+
 
 function notice(message) {
   const el = $('#notice');
@@ -75,10 +90,12 @@ function notice(message) {
   }
 }
 
+
 function openMenu(on) {
-  $('#sidebar').classList.toggle('open', on);
-  $('#scrim').classList.toggle('show', on);
+  $('#sidebar')?.classList.toggle('open', on);
+  $('#scrim')?.classList.toggle('show', on);
 }
+
 
 $('#menu').onclick = () => openMenu(true);
 $('#scrim').onclick = () => openMenu(false);
@@ -91,8 +108,16 @@ $('#dashboardShortcut').onclick = () => navigate('dashboard');
 
 let instructorSignup = false;
 
-$('#studentTab').onclick = () => toggleLogin(false);
-$('#adminTab').onclick = () => toggleLogin(true);
+
+$('#studentTab').onclick = () => {
+  toggleLogin(false);
+};
+
+
+$('#adminTab').onclick = () => {
+  toggleLogin(true);
+};
+
 
 function toggleLogin(admin) {
   state.adminLogin = admin;
@@ -100,8 +125,17 @@ function toggleLogin(admin) {
   $('#studentFields').hidden = admin;
   $('#adminFields').hidden = !admin;
 
-  $('#studentTab').classList.toggle('selected', !admin);
-  $('#adminTab').classList.toggle('selected', admin);
+  $('#studentTab').classList.toggle(
+    'selected',
+    !admin
+  );
+
+  $('#adminTab').classList.toggle(
+    'selected',
+    admin
+  );
+
+  $('#instructorAuthSwitch').hidden = !admin;
 
   if (!admin) {
     instructorSignup = false;
@@ -114,46 +148,80 @@ function toggleLogin(admin) {
   $('#authSuccess').hidden = true;
 }
 
+
 function updateInstructorMode() {
-  const loginButton = $('#instructorLoginMode');
-  const signupButton = $('#instructorSignupMode');
+  const title = $('#instructorAuthTitle');
   const nameField = $('#signupNameField');
   const hint = $('#signupHint');
   const submit = $('#authSubmit');
+  const switchText = $('#authSwitchText');
+  const switchButton = $('#authSwitchButton');
   const password = $('#password');
 
-  if (!loginButton || !signupButton) return;
+  if (!state.adminLogin) {
+    submit.textContent = 'Continue';
+    return;
+  }
 
-  loginButton.classList.toggle('selected', !instructorSignup);
-  signupButton.classList.toggle('selected', instructorSignup);
+  if (instructorSignup) {
+    title.textContent =
+      'Create Instructor Account';
 
-  nameField.hidden = !instructorSignup;
-  hint.hidden = !instructorSignup;
+    nameField.hidden = false;
+    hint.hidden = false;
 
-  submit.textContent =
-    state.adminLogin && instructorSignup
-      ? 'Request instructor access'
-      : 'Continue';
+    submit.textContent =
+      'Request access';
 
-  password.autocomplete =
-    instructorSignup
-      ? 'new-password'
-      : 'current-password';
+    switchText.textContent =
+      'Already have an account?';
+
+    switchButton.textContent =
+      'Log in';
+
+    password.autocomplete =
+      'new-password';
+
+  } else {
+    title.textContent =
+      'Instructor Login';
+
+    nameField.hidden = true;
+    hint.hidden = true;
+
+    submit.textContent =
+      'Log in';
+
+    switchText.textContent =
+      "Don't have an account?";
+
+    switchButton.textContent =
+      'Sign up';
+
+    password.autocomplete =
+      'current-password';
+  }
 
   $('#authError').textContent = '';
   $('#authSuccess').textContent = '';
   $('#authSuccess').hidden = true;
 }
 
-$('#instructorLoginMode').onclick = () => {
-  instructorSignup = false;
+
+$('#authSwitchButton').onclick = () => {
+  instructorSignup = !instructorSignup;
+
   updateInstructorMode();
+
+  $('#password').value = '';
+
+  if (instructorSignup) {
+    $('#signupName').focus();
+  } else {
+    $('#email').focus();
+  }
 };
 
-$('#instructorSignupMode').onclick = () => {
-  instructorSignup = true;
-  updateInstructorMode();
-};
 
 $('#loginForm').onsubmit = async e => {
   e.preventDefault();
@@ -164,106 +232,204 @@ $('#loginForm').onsubmit = async e => {
 
   try {
 
-    // Instructor signup
-    if (state.adminLogin && instructorSignup) {
-      const name = $('#signupName').value.trim();
-      const email = $('#email').value.trim();
-      const password = $('#password').value;
+    // ====================================
+    // INSTRUCTOR SIGNUP
+    // ====================================
+
+    if (
+      state.adminLogin &&
+      instructorSignup
+    ) {
+      const name =
+        $('#signupName').value.trim();
+
+      const email =
+        $('#email').value.trim();
+
+      const password =
+        $('#password').value;
 
       if (!name) {
-        throw Error('Please enter your name.');
+        throw Error(
+          'Please enter your name.'
+        );
       }
 
-      const data = await api('/api/session', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'instructor-signup',
-          name,
-          email,
-          password
-        })
-      });
+      if (!email) {
+        throw Error(
+          'Please enter your email.'
+        );
+      }
+
+      if (!password) {
+        throw Error(
+          'Please enter a password.'
+        );
+      }
+
+      const data =
+        await api(
+          '/api/session',
+          {
+            method: 'POST',
+
+            body: JSON.stringify({
+              action: 'instructor-signup',
+              name,
+              email,
+              password
+            })
+          }
+        );
 
       $('#authSuccess').textContent =
         data.message ||
-        'Your instructor account was created and is waiting for approval.';
+        'Your account has been created and is waiting for approval.';
 
       $('#authSuccess').hidden = false;
 
       $('#signupName').value = '';
+      $('#email').value = '';
       $('#password').value = '';
 
       return;
     }
 
-    // Instructor login
+
+    // ====================================
+    // INSTRUCTOR LOGIN
+    // ====================================
+
     if (state.adminLogin) {
-      const data = await api('/api/session', {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'admin',
-          email: $('#email').value.trim(),
-          password: $('#password').value
-        })
-      });
+      const email =
+        $('#email').value.trim();
+
+      const password =
+        $('#password').value;
+
+      if (!email || !password) {
+        throw Error(
+          'Please enter your email and password.'
+        );
+      }
+
+      const data =
+        await api(
+          '/api/session',
+          {
+            method: 'POST',
+
+            body: JSON.stringify({
+              action: 'admin',
+              email,
+              password
+            })
+          }
+        );
 
       state.user = data.user;
+
       start();
+
       return;
     }
 
-    // Student login
-    const data = await api('/api/session', {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'student',
-        code: $('#code').value.trim()
-      })
-    });
+
+    // ====================================
+    // STUDENT LOGIN
+    // ====================================
+
+    const code =
+      $('#code').value.trim();
+
+    if (!code) {
+      throw Error(
+        'Please enter your student code.'
+      );
+    }
+
+    const data =
+      await api(
+        '/api/session',
+        {
+          method: 'POST',
+
+          body: JSON.stringify({
+            action: 'student',
+            code
+          })
+        }
+      );
 
     state.user = data.user;
+
     start();
 
   } catch (err) {
-    $('#authError').textContent = err.message;
+    $('#authError').textContent =
+      err.message;
   }
 };
 
+
 $('#logout').onclick = async () => {
-  await api('/api/session', {
-    method: 'POST',
-    body: JSON.stringify({
-      action: 'logout'
-    })
-  });
+  try {
+    await api(
+      '/api/session',
+      {
+        method: 'POST',
+
+        body: JSON.stringify({
+          action: 'logout'
+        })
+      }
+    );
+  } catch (err) {
+    console.error(err);
+  }
 
   state.user = null;
   state.conversations = [];
   state.messages = [];
   state.instructors = [];
+  state.active = null;
 
   $('#app').hidden = true;
   $('#auth').hidden = false;
 
+  $('#code').value = '';
+  $('#email').value = '';
+  $('#password').value = '';
+  $('#signupName').value = '';
+
   instructorSignup = false;
+
   toggleLogin(false);
 };
 
+
 async function boot() {
   try {
-    const { user } = await api('/api/session');
+    const { user } =
+      await api('/api/session');
 
     if (user) {
       state.user = user;
+
       start();
     } else {
       $('#auth').hidden = false;
+
+      toggleLogin(false);
     }
   } catch (err) {
     $('#auth').hidden = false;
-    $('#authError').textContent = err.message;
+
+    $('#authError').textContent =
+      err.message;
   }
 }
+
 
 boot();
 
@@ -276,7 +442,8 @@ async function start() {
   $('#auth').hidden = true;
   $('#app').hidden = false;
 
-  $('#userName').textContent = state.user.name;
+  $('#userName').textContent =
+    state.user.name;
 
   if (state.user.role === 'admin') {
     $('#userRole').textContent =
@@ -291,7 +458,8 @@ async function start() {
   }
 
   $('#avatar').textContent =
-    state.user.name[0]?.toUpperCase() || 'A';
+    state.user.name?.[0]?.toUpperCase() ||
+    'A';
 
   navigate(
     state.user.role === 'admin'
@@ -320,7 +488,10 @@ const items = () => {
     ['groups', '◫', 'Groups']
   ];
 
-  if (state.user.instructorRole === 'owner') {
+  if (
+    state.user.instructorRole ===
+    'owner'
+  ) {
     nav.push([
       'instructors',
       '♚',
@@ -337,6 +508,7 @@ const items = () => {
   return nav;
 };
 
+
 function navigation() {
   const nav = $('#navigation');
 
@@ -344,7 +516,11 @@ function navigation() {
     .map(
       ([id, icon, label]) => `
         <button
-          class="nav-item ${state.view === id ? 'active' : ''}"
+          class="nav-item ${
+            state.view === id
+              ? 'active'
+              : ''
+          }"
           data-view="${id}"
         >
           <span>${icon}</span>
@@ -354,12 +530,15 @@ function navigation() {
     )
     .join('');
 
-  nav.querySelectorAll('[data-view]').forEach(
-    b =>
-      (b.onclick = () =>
-        navigate(b.dataset.view))
-  );
+  nav
+    .querySelectorAll('[data-view]')
+    .forEach(
+      b =>
+        (b.onclick = () =>
+          navigate(b.dataset.view))
+    );
 }
+
 
 async function navigate(view) {
   state.view = view;
@@ -368,8 +547,9 @@ async function navigate(view) {
   navigation();
 
   $('#pageTitle').textContent =
-    items().find(i => i[0] === view)?.[2] ||
-    'AI360';
+    items().find(
+      i => i[0] === view
+    )?.[2] || 'AI360';
 
   $('#dashboardShortcut').hidden =
     state.user.role !== 'admin' ||
@@ -379,8 +559,13 @@ async function navigate(view) {
     '<div class="loading">Loading…</div>';
 
   try {
-    if (view === 'dashboard') await dashboard();
-    if (view === 'chat') await chat();
+    if (view === 'dashboard') {
+      await dashboard();
+    }
+
+    if (view === 'chat') {
+      await chat();
+    }
 
     if (
       view === 'history' ||
@@ -389,11 +574,25 @@ async function navigate(view) {
       await activity();
     }
 
-    if (view === 'students') await students();
-    if (view === 'groups') await groups();
-    if (view === 'instructors') await instructors();
-    if (view === 'classroom') await classroom();
-    if (view === 'settings') settings();
+    if (view === 'students') {
+      await students();
+    }
+
+    if (view === 'groups') {
+      await groups();
+    }
+
+    if (view === 'instructors') {
+      await instructors();
+    }
+
+    if (view === 'classroom') {
+      await classroom();
+    }
+
+    if (view === 'settings') {
+      settings();
+    }
 
   } catch (err) {
     $('#content').innerHTML = `
@@ -412,29 +611,37 @@ async function navigate(view) {
 // ========================================
 
 async function dashboard() {
-  const [s, g, c] = await Promise.all([
-    get('students'),
-    get('groups'),
-    get('conversations')
-  ]);
+  const [s, g, c] =
+    await Promise.all([
+      get('students'),
+      get('groups'),
+      get('conversations')
+    ]);
 
   state.students = s.students;
   state.groups = g.groups;
-  state.conversations = c.conversations;
+  state.conversations =
+    c.conversations;
 
   let pendingCount = 0;
 
-  if (state.user.instructorRole === 'owner') {
+  if (
+    state.user.instructorRole ===
+    'owner'
+  ) {
     try {
-      const result = await get('instructors');
+      const result =
+        await get('instructors');
 
       state.instructors =
         result.instructors;
 
       pendingCount =
         state.instructors.filter(
-          x => x.status === 'pending'
+          x =>
+            x.status === 'pending'
         ).length;
+
     } catch {
       pendingCount = 0;
     }
@@ -450,12 +657,13 @@ async function dashboard() {
         </div>
 
         <h1>
-          Welcome back, ${escape(state.user.name)}.
+          Welcome back,
+          ${escape(state.user.name)}.
         </h1>
 
         <p>
-          Keep your club organized and your students'
-          ideas moving.
+          Keep your club organized and your
+          students' ideas moving.
         </p>
 
         <button
@@ -467,6 +675,7 @@ async function dashboard() {
 
       </div>
 
+
       <div class="stats">
 
         <div class="stat">
@@ -477,31 +686,53 @@ async function dashboard() {
               ).length
             }
           </strong>
-          <span>Active students</span>
+
+          <span>
+            Active students
+          </span>
         </div>
 
+
         <div class="stat">
-          <strong>${state.groups.length}</strong>
-          <span>Groups</span>
+          <strong>
+            ${state.groups.length}
+          </strong>
+
+          <span>
+            Groups
+          </span>
         </div>
+
 
         <div class="stat">
           <strong>
             ${
               state.conversations.filter(
-                x => x.owner_role === 'student'
+                x =>
+                  x.owner_role ===
+                  'student'
               ).length
             }
           </strong>
-          <span>Student conversations</span>
+
+          <span>
+            Student conversations
+          </span>
         </div>
 
+
         ${
-          state.user.instructorRole === 'owner'
+          state.user.instructorRole ===
+          'owner'
             ? `
               <div class="stat">
-                <strong>${pendingCount}</strong>
-                <span>Pending instructors</span>
+                <strong>
+                  ${pendingCount}
+                </strong>
+
+                <span>
+                  Pending instructors
+                </span>
               </div>
             `
             : ''
@@ -509,7 +740,9 @@ async function dashboard() {
 
       </div>
 
+
       <h2>Workspace</h2>
+
 
       <div class="cards">
 
@@ -518,51 +751,62 @@ async function dashboard() {
           data-go="students"
         >
           <b>Students ↗</b>
+
           <span>
             Add students and manage access
           </span>
         </button>
+
 
         <button
           class="feature"
           data-go="activity"
         >
           <b>Conversations ↗</b>
+
           <span>
             Review questions and AI responses
           </span>
         </button>
+
 
         <button
           class="feature"
           data-go="classroom"
         >
           <b>Classroom ↗</b>
+
           <span>
             Share a live prompt on the projector
           </span>
         </button>
+
 
         <button
           class="feature"
           data-go="groups"
         >
           <b>Groups ↗</b>
+
           <span>
             Organize by grade level
           </span>
         </button>
 
+
         ${
-          state.user.instructorRole === 'owner'
+          state.user.instructorRole ===
+          'owner'
             ? `
               <button
                 class="feature"
                 data-go="instructors"
               >
                 <b>Instructors ↗</b>
+
                 <span>
-                  Review and approve instructor access
+                  Review and approve
+                  instructor access
                 </span>
               </button>
             `
@@ -577,13 +821,16 @@ async function dashboard() {
   bindGo();
 }
 
+
 function bindGo() {
   document
     .querySelectorAll('[data-go]')
     .forEach(
       b =>
         (b.onclick = () =>
-          navigate(b.dataset.go))
+          navigate(
+            b.dataset.go
+          ))
     );
 }
 
@@ -595,7 +842,8 @@ function bindGo() {
 async function instructors() {
   if (
     state.user.role !== 'admin' ||
-    state.user.instructorRole !== 'owner'
+    state.user.instructorRole !==
+      'owner'
   ) {
     throw Error(
       'Only the AI360 owner can manage instructors.'
@@ -623,11 +871,14 @@ async function instructors() {
       x => x.status === 'rejected'
     );
 
+
   const instructorRow = x => `
     <tr>
 
       <td>
-        <strong>${escape(x.name)}</strong>
+        <strong>
+          ${escape(x.name)}
+        </strong>
 
         ${
           x.role === 'owner'
@@ -636,7 +887,9 @@ async function instructors() {
         }
       </td>
 
-      <td>${escape(x.email)}</td>
+      <td>
+        ${escape(x.email)}
+      </td>
 
       <td>
         ${
@@ -662,7 +915,11 @@ async function instructors() {
 
         ${
           x.role === 'owner'
-            ? '<span class="muted">Protected</span>'
+            ? `
+              <span class="muted">
+                Protected
+              </span>
+            `
 
             : x.status === 'pending'
             ? `
@@ -712,6 +969,7 @@ async function instructors() {
     </tr>
   `;
 
+
   $('#content').innerHTML = `
     <div class="page">
 
@@ -722,11 +980,13 @@ async function instructors() {
 
           <p>
             Review instructor signup requests
-            and control access to the AI360 workspace.
+            and control access to the
+            AI360 workspace.
           </p>
         </div>
 
       </div>
+
 
       ${
         pending.length
@@ -739,8 +999,9 @@ async function instructors() {
               </h2>
 
               <p>
-                These instructors cannot access the
-                workspace until you approve them.
+                These instructors cannot access
+                the workspace until you
+                approve them.
               </p>
 
               <div class="table-wrap">
@@ -758,9 +1019,13 @@ async function instructors() {
                   </thead>
 
                   <tbody>
-                    ${pending
-                      .map(instructorRow)
-                      .join('')}
+                    ${
+                      pending
+                        .map(
+                          instructorRow
+                        )
+                        .join('')
+                    }
                   </tbody>
 
                 </table>
@@ -772,20 +1037,25 @@ async function instructors() {
           : `
             <div class="panel">
 
-              <h2>Pending approval</h2>
+              <h2>
+                Pending approval
+              </h2>
 
               <p class="muted">
-                No instructor requests are waiting
-                for approval.
+                No instructor requests are
+                waiting for approval.
               </p>
 
             </div>
           `
       }
 
+
       <div class="panel">
 
-        <h2>Approved instructors</h2>
+        <h2>
+          Approved instructors
+        </h2>
 
         <div class="table-wrap">
 
@@ -806,7 +1076,9 @@ async function instructors() {
               ${
                 approved.length
                   ? approved
-                      .map(instructorRow)
+                      .map(
+                        instructorRow
+                      )
                       .join('')
                   : `
                     <tr>
@@ -828,12 +1100,15 @@ async function instructors() {
 
       </div>
 
+
       ${
         rejected.length
           ? `
             <div class="panel">
 
-              <h2>Rejected / revoked</h2>
+              <h2>
+                Rejected / revoked
+              </h2>
 
               <div class="table-wrap">
 
@@ -850,9 +1125,13 @@ async function instructors() {
                   </thead>
 
                   <tbody>
-                    ${rejected
-                      .map(instructorRow)
-                      .join('')}
+                    ${
+                      rejected
+                        .map(
+                          instructorRow
+                        )
+                        .join('')
+                    }
                   </tbody>
 
                 </table>
@@ -864,6 +1143,7 @@ async function instructors() {
           : ''
       }
 
+
       <p
         id="notice"
         class="error"
@@ -873,56 +1153,62 @@ async function instructors() {
     </div>
   `;
 
+
   document
     .querySelectorAll(
       '[data-instructor][data-status]'
     )
     .forEach(button => {
 
-      button.onclick = async () => {
-        const userId =
-          button.dataset.instructor;
+      button.onclick =
+        async () => {
 
-        const status =
-          button.dataset.status;
+          const userId =
+            button.dataset.instructor;
 
-        const label =
-          status === 'approved'
-            ? 'approve'
-            : 'reject';
+          const status =
+            button.dataset.status;
 
-        const target =
-          state.instructors.find(
-            x => x.user_id === userId
-          );
+          const label =
+            status === 'approved'
+              ? 'approve'
+              : 'reject';
 
-        if (!target) return;
+          const target =
+            state.instructors.find(
+              x =>
+                x.user_id ===
+                userId
+            );
 
-        const confirmed =
-          window.confirm(
-            `Are you sure you want to ${label} ${target.name}?`
-          );
+          if (!target) return;
 
-        if (!confirmed) return;
+          const confirmed =
+            window.confirm(
+              `Are you sure you want to ${label} ${target.name}?`
+            );
 
-        button.disabled = true;
+          if (!confirmed) return;
 
-        try {
-          await post(
-            'updateInstructor',
-            {
-              userId,
-              status
-            }
-          );
+          button.disabled = true;
 
-          await instructors();
+          try {
+            await post(
+              'updateInstructor',
+              {
+                userId,
+                status
+              }
+            );
 
-        } catch (err) {
-          button.disabled = false;
-          notice(err.message);
-        }
-      };
+            await instructors();
+
+          } catch (err) {
+            button.disabled = false;
+
+            notice(err.message);
+          }
+        };
     });
 }
 
@@ -937,13 +1223,17 @@ async function loadConversations() {
   ).conversations;
 }
 
+
 function listConversations() {
   return state.conversations.filter(
     c =>
-      c.owner_role === state.user.role &&
-      c.owner_id === state.user.id
+      c.owner_role ===
+        state.user.role &&
+      c.owner_id ===
+        state.user.id
   );
 }
+
 
 async function chat() {
   await loadConversations();
@@ -954,8 +1244,10 @@ async function chat() {
   renderChat();
 }
 
+
 function renderChat() {
-  const own = listConversations();
+  const own =
+    listConversations();
 
   $('#content').innerHTML = `
     <div class="chat-layout">
@@ -992,12 +1284,17 @@ function renderChat() {
                 `
               )
               .join('') ||
-            '<p class="muted">No chats yet.</p>'
+            `
+              <p class="muted">
+                No chats yet.
+              </p>
+            `
           }
 
         </div>
 
       </div>
+
 
       <div class="chat-main">
 
@@ -1014,7 +1311,9 @@ function renderChat() {
               : `
                 <div class="chat-welcome">
 
-                  <div class="spark">✦</div>
+                  <div class="spark">
+                    ✦
+                  </div>
 
                   <h1>
                     What can I help with?
@@ -1031,6 +1330,7 @@ function renderChat() {
 
         </div>
 
+
         <div class="composer-area">
 
           <form
@@ -1045,13 +1345,16 @@ function renderChat() {
               aria-label="Message AI360"
             ></textarea>
 
+
             <div class="compose-actions">
 
               <button
                 id="imageToggle"
                 type="button"
                 class="chip ${
-                  state.image ? 'on' : ''
+                  state.image
+                    ? 'on'
+                    : ''
                 }"
               >
                 ◉ &nbsp;${
@@ -1060,6 +1363,7 @@ function renderChat() {
                     : 'Create image'
                 }
               </button>
+
 
               <button
                 id="send"
@@ -1074,10 +1378,13 @@ function renderChat() {
 
           </form>
 
+
           <small>
             AI can make mistakes. Check important
-            information and keep personal details private.
+            information and keep personal
+            details private.
           </small>
+
 
           <div
             id="notice"
@@ -1091,6 +1398,7 @@ function renderChat() {
     </div>
   `;
 
+
   $('#newChat').onclick = () => {
     state.active = null;
     state.messages = [];
@@ -1098,6 +1406,7 @@ function renderChat() {
 
     renderChat();
   };
+
 
   document
     .querySelectorAll('.chat-link')
@@ -1122,13 +1431,16 @@ function renderChat() {
         })
     );
 
-  $('#imageToggle').onclick = () => {
-    state.image = !state.image;
 
-    $('#imageToggle').classList.toggle(
-      'on',
-      state.image
-    );
+  $('#imageToggle').onclick = () => {
+    state.image =
+      !state.image;
+
+    $('#imageToggle')
+      .classList.toggle(
+        'on',
+        state.image
+      );
 
     $('#imageToggle').textContent =
       state.image
@@ -1136,8 +1448,10 @@ function renderChat() {
         : '◉  Create image';
   };
 
+
   $('#composer').onsubmit =
     sendMessage;
+
 
   $('#prompt').onkeydown = e => {
     if (
@@ -1145,12 +1459,16 @@ function renderChat() {
       !e.shiftKey
     ) {
       e.preventDefault();
-      $('#composer').requestSubmit();
+
+      $('#composer')
+        .requestSubmit();
     }
   };
 
+
   paintMessages();
 }
+
 
 function messageHtml(m) {
   return `
@@ -1158,7 +1476,11 @@ function messageHtml(m) {
 
       ${
         m.role === 'assistant'
-          ? '<div class="ai-mark">✦</div>'
+          ? `
+            <div class="ai-mark">
+              ✦
+            </div>
+          `
           : ''
       }
 
@@ -1186,6 +1508,7 @@ function messageHtml(m) {
   `;
 }
 
+
 function paintMessages() {
   const container =
     $('#chatMessages');
@@ -1193,13 +1516,18 @@ function paintMessages() {
   if (!container) return;
 
   const rows =
-    container.querySelectorAll('.message');
+    container.querySelectorAll(
+      '.message'
+    );
 
   rows.forEach((row, i) => {
     const text =
       row.querySelector('.text');
 
-    if (text && state.messages[i]) {
+    if (
+      text &&
+      state.messages[i]
+    ) {
       text.textContent =
         state.messages[i].content;
     }
@@ -1208,17 +1536,21 @@ function paintMessages() {
   scrollMessages();
 }
 
+
 function scrollMessages() {
-  const el = $('#chatMessages');
+  const el =
+    $('#chatMessages');
 
   if (el) {
     requestAnimationFrame(
-      () =>
-        (el.scrollTop =
-          el.scrollHeight)
+      () => {
+        el.scrollTop =
+          el.scrollHeight;
+      }
     );
   }
 }
+
 
 async function sendMessage(e) {
   e.preventDefault();
@@ -1232,7 +1564,8 @@ async function sendMessage(e) {
 
   state.busy = true;
 
-  const image = state.image;
+  const image =
+    state.image;
 
   state.messages.push({
     role: 'user',
@@ -1243,7 +1576,14 @@ async function sendMessage(e) {
     state.messages
       .map(messageHtml)
       .join('') +
-    '<div class="loading" id="waiting">AI360 is thinking…</div>';
+    `
+      <div
+        class="loading"
+        id="waiting"
+      >
+        AI360 is thinking…
+      </div>
+    `;
 
   paintMessages();
 
@@ -1256,11 +1596,13 @@ async function sendMessage(e) {
         '/api/chat',
         {
           method: 'POST',
+
           body: JSON.stringify({
             message: prompt,
             conversationId:
               state.active,
-            wantsImage: image
+            wantsImage:
+              image
           })
         }
       );
@@ -1271,7 +1613,8 @@ async function sendMessage(e) {
     state.messages.push({
       role: 'assistant',
       content: data.text,
-      image_url: data.imagePath
+      image_url:
+        data.imagePath
     });
 
     await loadConversations();
@@ -1287,14 +1630,16 @@ async function sendMessage(e) {
     renderChat();
     paintMessages();
 
-    $('#prompt').value = prompt;
+    $('#prompt').value =
+      prompt;
 
     notice(err.message);
 
   } finally {
     state.busy = false;
 
-    const send = $('#send');
+    const send =
+      $('#send');
 
     if (send) {
       send.disabled = false;
@@ -1321,12 +1666,15 @@ async function activity() {
       s.students;
   }
 
-  const rows = admin
-    ? state.conversations.filter(
-        c =>
-          c.owner_role === 'student'
-      )
-    : listConversations();
+  const rows =
+    admin
+      ? state.conversations.filter(
+          c =>
+            c.owner_role ===
+            'student'
+        )
+      : listConversations();
+
 
   $('#content').innerHTML = `
     <div class="page">
@@ -1355,6 +1703,7 @@ async function activity() {
 
       </div>
 
+
       <div class="panel">
 
         <div class="table-wrap">
@@ -1364,18 +1713,27 @@ async function activity() {
             <thead>
 
               <tr>
+
                 ${
                   admin
                     ? '<th>Student</th>'
                     : ''
                 }
 
-                <th>Conversation</th>
-                <th>Updated</th>
+                <th>
+                  Conversation
+                </th>
+
+                <th>
+                  Updated
+                </th>
+
                 <th></th>
+
               </tr>
 
             </thead>
+
 
             <tbody>
 
@@ -1403,7 +1761,9 @@ async function activity() {
                         }
 
                         <td>
-                          ${escape(c.title)}
+                          ${escape(
+                            c.title
+                          )}
                         </td>
 
                         <td>
@@ -1445,13 +1805,17 @@ async function activity() {
 
       </div>
 
+
       <div id="review"></div>
 
     </div>
   `;
 
+
   document
-    .querySelectorAll('[data-review]')
+    .querySelectorAll(
+      '[data-review]'
+    )
     .forEach(
       b =>
         (b.onclick = async () => {
@@ -1473,7 +1837,9 @@ async function activity() {
 
               <div class="page-head">
 
-                <h2>Conversation</h2>
+                <h2>
+                  Conversation
+                </h2>
 
                 <button
                   class="subtle"
@@ -1484,60 +1850,69 @@ async function activity() {
 
               </div>
 
+
               <div id="reviewMessages">
 
-                ${messages
-                  .map(
-                    m => `
-                      <div class="review-message">
+                ${
+                  messages
+                    .map(
+                      m => `
+                        <div class="review-message">
 
-                        <b>
+                          <b>
+                            ${
+                              m.role ===
+                              'user'
+                                ? 'Student'
+                                : 'AI360'
+                            }
+                          </b>
+
+                          <p></p>
+
                           ${
-                            m.role === 'user'
-                              ? 'Student'
-                              : 'AI360'
+                            m.image_url
+                              ? `
+                                <img
+                                  class="generated"
+                                  src="/api/image?path=${encodeURIComponent(
+                                    m.image_url
+                                  )}"
+                                  alt="Generated image"
+                                >
+                              `
+                              : ''
                           }
-                        </b>
 
-                        <p></p>
-
-                        ${
-                          m.image_url
-                            ? `
-                              <img
-                                class="generated"
-                                src="/api/image?path=${encodeURIComponent(
-                                  m.image_url
-                                )}"
-                                alt="Generated image"
-                              >
-                            `
-                            : ''
-                        }
-
-                      </div>
-                    `
-                  )
-                  .join('')}
+                        </div>
+                      `
+                    )
+                    .join('')
+                }
 
               </div>
 
             </div>
           `;
 
+
           panel
             .querySelectorAll(
               '.review-message p'
             )
             .forEach(
-              (p, i) =>
-                (p.textContent =
-                  messages[i].content)
+              (p, i) => {
+                p.textContent =
+                  messages[i].content;
+              }
             );
 
+
           $('#closeReview').onclick =
-            () =>
-              (panel.innerHTML = '');
+            () => {
+              panel.innerHTML = '';
+            };
+
 
           panel.scrollIntoView({
             behavior: 'smooth'
@@ -1558,8 +1933,12 @@ async function students() {
       get('groups')
     ]);
 
-  state.students = s.students;
-  state.groups = g.groups;
+  state.students =
+    s.students;
+
+  state.groups =
+    g.groups;
+
 
   $('#content').innerHTML = `
     <div class="page">
@@ -1567,19 +1946,26 @@ async function students() {
       <div class="page-head">
 
         <div>
-          <h1>Students</h1>
+
+          <h1>
+            Students
+          </h1>
 
           <p>
             Create a private code for each student
             and assign a group.
           </p>
+
         </div>
 
       </div>
 
+
       <div class="panel">
 
-        <h2>Add student</h2>
+        <h2>
+          Add student
+        </h2>
 
         <form
           id="studentForm"
@@ -1597,24 +1983,30 @@ async function students() {
             >
           </label>
 
+
           <label>
             Group
 
             <select id="studentGroup">
 
-              ${g.groups
-                .map(
-                  x => `
-                    <option value="${x.id}">
-                      ${escape(x.name)}
-                    </option>
-                  `
-                )
-                .join('')}
+              ${
+                g.groups
+                  .map(
+                    x => `
+                      <option
+                        value="${x.id}"
+                      >
+                        ${escape(x.name)}
+                      </option>
+                    `
+                  )
+                  .join('')
+              }
 
             </select>
 
           </label>
+
 
           <button class="primary">
             Create code
@@ -1622,11 +2014,13 @@ async function students() {
 
         </form>
 
+
         <div
           id="newCode"
           class="code-result"
           hidden
         ></div>
+
 
         <p
           id="notice"
@@ -1636,9 +2030,12 @@ async function students() {
 
       </div>
 
+
       <div class="panel">
 
-        <h2>Student roster</h2>
+        <h2>
+          Student roster
+        </h2>
 
         <div class="table-wrap">
 
@@ -1655,6 +2052,7 @@ async function students() {
 
             </thead>
 
+
             <tbody>
 
               ${
@@ -1664,7 +2062,9 @@ async function students() {
                       <tr>
 
                         <td>
-                          ${escape(x.name)}
+                          ${escape(
+                            x.name
+                          )}
                         </td>
 
                         <td>
@@ -1673,27 +2073,32 @@ async function students() {
                             data-group="${x.id}"
                           >
 
-                            ${g.groups
-                              .map(
-                                y => `
-                                  <option
-                                    value="${y.id}"
-                                    ${
-                                      y.id ===
-                                      x.group_id
-                                        ? 'selected'
-                                        : ''
-                                    }
-                                  >
-                                    ${escape(y.name)}
-                                  </option>
-                                `
-                              )
-                              .join('')}
+                            ${
+                              g.groups
+                                .map(
+                                  y => `
+                                    <option
+                                      value="${y.id}"
+                                      ${
+                                        y.id ===
+                                        x.group_id
+                                          ? 'selected'
+                                          : ''
+                                      }
+                                    >
+                                      ${escape(
+                                        y.name
+                                      )}
+                                    </option>
+                                  `
+                                )
+                                .join('')
+                            }
 
                           </select>
 
                         </td>
+
 
                         <td>
                           ${
@@ -1702,6 +2107,7 @@ async function students() {
                               : 'Paused'
                           }
                         </td>
+
 
                         <td>
 
@@ -1745,6 +2151,7 @@ async function students() {
     </div>
   `;
 
+
   $('#studentForm').onsubmit =
     async e => {
       e.preventDefault();
@@ -1756,6 +2163,7 @@ async function students() {
             {
               name:
                 $('#studentName').value,
+
               groupId:
                 $('#studentGroup').value
             }
@@ -1774,8 +2182,11 @@ async function students() {
       }
     };
 
+
   document
-    .querySelectorAll('[data-toggle]')
+    .querySelectorAll(
+      '[data-toggle]'
+    )
     .forEach(
       b =>
         (b.onclick = async () => {
@@ -1807,8 +2218,11 @@ async function students() {
         })
     );
 
+
   document
-    .querySelectorAll('[data-group]')
+    .querySelectorAll(
+      '[data-group]'
+    )
     .forEach(
       s =>
         (s.onchange = async () => {
@@ -1851,51 +2265,63 @@ async function groups() {
     await get('groups')
   ).groups;
 
+
   $('#content').innerHTML = `
     <div class="page">
 
       <div class="page-head">
 
         <div>
-          <h1>Groups</h1>
+
+          <h1>
+            Groups
+          </h1>
 
           <p>
-            Explanation complexity follows each
-            student's assigned grade level.
+            Explanation complexity follows
+            each student's assigned grade level.
           </p>
+
         </div>
 
       </div>
 
+
       <div class="cards">
 
-        ${state.groups
-          .map(
-            g => `
-              <div class="panel">
+        ${
+          state.groups
+            .map(
+              g => `
+                <div class="panel">
 
-                <h2>
-                  ${escape(g.name)}
-                </h2>
+                  <h2>
+                    ${escape(g.name)}
+                  </h2>
 
-                <p>
-                  ${
-                    g.grade_level === 'grades12'
-                      ? 'Grades 1–2'
-                      : 'Grades 3–5'
-                  }
-                </p>
+                  <p>
+                    ${
+                      g.grade_level ===
+                      'grades12'
+                        ? 'Grades 1–2'
+                        : 'Grades 3–5'
+                    }
+                  </p>
 
-              </div>
-            `
-          )
-          .join('')}
+                </div>
+              `
+            )
+            .join('')
+        }
 
       </div>
 
+
       <div class="panel">
 
-        <h2>Create a group</h2>
+        <h2>
+          Create a group
+        </h2>
 
         <form
           id="groupForm"
@@ -1912,6 +2338,7 @@ async function groups() {
               placeholder="Group name"
             >
           </label>
+
 
           <label>
             Grade level
@@ -1930,11 +2357,13 @@ async function groups() {
 
           </label>
 
+
           <button class="primary">
             Add group
           </button>
 
         </form>
+
 
         <p
           id="notice"
@@ -1946,6 +2375,7 @@ async function groups() {
     </div>
   `;
 
+
   $('#groupForm').onsubmit =
     async e => {
       e.preventDefault();
@@ -1956,6 +2386,7 @@ async function groups() {
           {
             name:
               $('#groupName').value,
+
             gradeLevel:
               $('#grade').value
           }
@@ -1979,7 +2410,9 @@ async function classroom() {
     await get('classroom')
   ).classroom;
 
-  const c = state.classroom;
+  const c =
+    state.classroom;
+
 
   $('#content').innerHTML = `
     <div class="page">
@@ -1988,7 +2421,9 @@ async function classroom() {
 
         <div>
 
-          <h1>Classroom</h1>
+          <h1>
+            Classroom
+          </h1>
 
           <p>
             Present a shared question or activity
@@ -1996,6 +2431,7 @@ async function classroom() {
           </p>
 
         </div>
+
 
         <button
           id="project"
@@ -2006,9 +2442,12 @@ async function classroom() {
 
       </div>
 
+
       <div class="panel">
 
-        <h2>Live display</h2>
+        <h2>
+          Live display
+        </h2>
 
         <form id="classForm">
 
@@ -2018,9 +2457,12 @@ async function classroom() {
             <input
               id="classTitle"
               maxlength="120"
-              value="${escape(c.title)}"
+              value="${escape(
+                c.title
+              )}"
             >
           </label>
+
 
           <label>
             Prompt or instructions
@@ -2033,9 +2475,11 @@ async function classroom() {
 
           </label>
 
+
           <button class="primary">
             Publish to projector
           </button>
+
 
           <p
             id="notice"
@@ -2049,8 +2493,10 @@ async function classroom() {
     </div>
   `;
 
+
   $('#classPrompt').value =
     c.prompt;
+
 
   $('#classForm').onsubmit =
     async e => {
@@ -2062,17 +2508,21 @@ async function classroom() {
           {
             title:
               $('#classTitle').value,
+
             prompt:
               $('#classPrompt').value
           }
         );
 
-        notice('Projector updated.');
+        notice(
+          'Projector updated.'
+        );
 
       } catch (err) {
         notice(err.message);
       }
     };
+
 
   $('#project').onclick = () =>
     window.open(
@@ -2091,21 +2541,29 @@ function settings() {
     state.user.instructorRole ===
     'owner';
 
+
   $('#content').innerHTML = `
     <div class="page">
 
       <div class="page-head">
-        <h1>Settings</h1>
+        <h1>
+          Settings
+        </h1>
       </div>
+
 
       <div class="panel">
 
-        <h2>Instructor account</h2>
+        <h2>
+          Instructor account
+        </h2>
 
         <p>
           Signed in as
           <strong>
-            ${escape(state.user.name)}
+            ${escape(
+              state.user.name
+            )}
           </strong>.
         </p>
 
@@ -2124,28 +2582,34 @@ function settings() {
           isOwner
             ? `
               <p>
-                You can review and approve instructor
-                signup requests from the Instructors section.
+                You can review and approve
+                instructor signup requests from
+                the Instructors section.
               </p>
             `
             : ''
         }
 
         <p>
-          Student codes are shown only when created.
-          Pause a student to revoke their access.
+          Student codes are shown only when
+          created. Pause a student to revoke
+          their access.
         </p>
 
       </div>
 
+
       <div class="panel">
 
-        <h2>Privacy</h2>
+        <h2>
+          Privacy
+        </h2>
 
         <p>
-          Conversations and generated images are stored
-          privately. Students see only their own
-          conversations; approved instructors can review
+          Conversations and generated images
+          are stored privately. Students see
+          only their own conversations;
+          approved instructors can review
           student activity.
         </p>
 
