@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     const { message, previousResponseId, wantsImage } = req.body || {};
     if (!message || typeof message !== "string") return res.status(400).json({ error: "Message is required" });
     const payload = {
-      model: "gpt-6-astra",
+      model: "gpt-5.6-luna",
       instructions: INSTRUCTIONS,
       input: message.slice(0, 6000),
       max_output_tokens: 700,
