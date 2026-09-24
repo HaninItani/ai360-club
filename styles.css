@@ -125,3 +125,6 @@
 .login-card .tabs {
   margin-bottom: 28px;
 }
+
+/* Student full-name registration */
+#studentGroupField{margin-top:4px}.registration-control{display:flex;align-items:center;justify-content:space-between;gap:22px}.registration-control h2{margin-bottom:6px}.registration-control p{margin:0}.registration-control button{flex:none}.registration-closed{border:1px solid #cbd5e4;border-radius:10px;background:#fff;text-decoration:none!important}@media(max-width:650px){.registration-control{align-items:stretch;flex-direction:column}.registration-control button{width:100%}}

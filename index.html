@@ -4,328 +4,79 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f5f7fb">
-
   <title>AI360 Club</title>
-
   <link rel="stylesheet" href="/styles.css">
 </head>
-
 <body>
-
-<!-- =========================
-     AUTHENTICATION
-========================= -->
-
 <div id="auth" class="auth-screen">
-
   <div class="login-card">
-
-    <img
-      src="/ai360-logo.png"
-      alt="AI360 Club"
-      class="login-logo"
-    >
-
+    <img src="/ai360-logo.png" alt="AI360 Club" class="login-logo">
     <h1>Welcome to AI360</h1>
-
-    <p class="auth-subtitle">
-      Explore ideas, ask questions, and build something new.
-    </p>
-
-
-    <!-- STUDENT / INSTRUCTOR -->
+    <p class="auth-subtitle">Explore ideas, ask questions, and build something new.</p>
 
     <div class="tabs">
-
-      <button
-        id="studentTab"
-        class="selected"
-        type="button"
-      >
-        Student
-      </button>
-
-      <button
-        id="adminTab"
-        type="button"
-      >
-        Instructor
-      </button>
-
+      <button id="studentTab" class="selected" type="button">Student</button>
+      <button id="adminTab" type="button">Instructor</button>
     </div>
-
 
     <form id="loginForm">
-
-
-      <!-- =========================
-           STUDENT LOGIN
-      ========================= -->
-
       <div id="studentFields">
-
+        <h2 class="auth-form-title">Student Login</h2>
         <label>
-          Student code
-
-          <input
-            id="code"
-            autocomplete="off"
-            placeholder="Enter your code"
-          >
+          Full name
+          <input id="studentFullName" autocomplete="name" maxlength="80" placeholder="First name + last name">
         </label>
-
+        <div id="studentGroupField" hidden>
+          <label>
+            Choose your group
+            <select id="studentGroup"></select>
+          </label>
+          <p class="signup-hint">First time here? Choose your group and AI360 will create your student profile.</p>
+        </div>
       </div>
-
-
-      <!-- =========================
-           INSTRUCTOR LOGIN / SIGNUP
-      ========================= -->
 
       <div id="adminFields" hidden>
-
-        <h2
-          id="instructorAuthTitle"
-          class="auth-form-title"
-        >
-          Instructor Login
-        </h2>
-
-
-        <!-- Name only appears during signup -->
-
+        <h2 id="instructorAuthTitle" class="auth-form-title">Instructor Login</h2>
         <div id="signupNameField" hidden>
-
-          <label>
-            Name
-
-            <input
-              id="signupName"
-              type="text"
-              maxlength="80"
-              autocomplete="name"
-              placeholder="Enter your name"
-            >
-          </label>
-
+          <label>Name<input id="signupName" type="text" maxlength="80" autocomplete="name" placeholder="Enter your name"></label>
         </div>
-
-
-        <label>
-          Email
-
-          <input
-            id="email"
-            type="email"
-            autocomplete="username"
-            placeholder="Enter your email"
-          >
-        </label>
-
-
-        <label>
-          Password
-
-          <input
-            id="password"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Enter your password"
-          >
-        </label>
-
-
-        <!-- Only appears during signup -->
-
-        <p
-          id="signupHint"
-          class="signup-hint"
-          hidden
-        >
-          Your account will need approval from the AI360 owner
-          before you can access the workspace.
-        </p>
-
+        <label>Email<input id="email" type="email" autocomplete="username" placeholder="Enter your email"></label>
+        <label>Password<input id="password" type="password" autocomplete="current-password" placeholder="Enter your password"></label>
+        <p id="signupHint" class="signup-hint" hidden>Your account will need approval from the AI360 owner before you can access the workspace.</p>
       </div>
 
+      <button id="authSubmit" class="primary wide" type="submit">Continue</button>
 
-      <!-- MAIN BUTTON -->
-
-      <button
-        id="authSubmit"
-        class="primary wide"
-        type="submit"
-      >
-        Continue
-      </button>
-
-
-      <!-- LOGIN ↔ SIGNUP SWITCH -->
-
-      <div
-        id="instructorAuthSwitch"
-        class="auth-switch"
-        hidden
-      >
-
-        <span id="authSwitchText">
-          Don't have an account?
-        </span>
-
-        <button
-          id="authSwitchButton"
-          type="button"
-        >
-          Sign up
-        </button>
-
+      <div id="instructorAuthSwitch" class="auth-switch" hidden>
+        <span id="authSwitchText">Don't have an account?</span>
+        <button id="authSwitchButton" type="button">Sign up</button>
       </div>
 
-
-      <!-- SUCCESS / ERROR -->
-
-      <p
-        id="authSuccess"
-        class="auth-success"
-        role="status"
-        hidden
-      ></p>
-
-      <p
-        id="authError"
-        class="error"
-        role="alert"
-      ></p>
-
+      <p id="authSuccess" class="auth-success" role="status" hidden></p>
+      <p id="authError" class="error" role="alert"></p>
     </form>
-
   </div>
-
 </div>
 
-
-
-<!-- =========================
-     MAIN APPLICATION
-========================= -->
-
-<div
-  id="app"
-  class="shell"
-  hidden
->
-
-  <aside
-    id="sidebar"
-    class="sidebar"
-  >
-
-    <div class="brand">
-
-      <img
-        src="/ai360-logo.png"
-        alt="AI360 Club"
-      >
-
-      <span>
-        AI360
-        <small>CLUB WORKSPACE</small>
-      </span>
-
-    </div>
-
-
-    <nav
-      id="navigation"
-      aria-label="Main navigation"
-    ></nav>
-
-
+<div id="app" class="shell" hidden>
+  <aside id="sidebar" class="sidebar">
+    <div class="brand"><img src="/ai360-logo.png" alt="AI360 Club"><span>AI360<small>CLUB WORKSPACE</small></span></div>
+    <nav id="navigation" aria-label="Main navigation"></nav>
     <div class="sidebar-footer">
-
-      <div class="identity">
-
-        <span
-          id="avatar"
-          class="avatar"
-        >
-          A
-        </span>
-
-        <span>
-          <strong id="userName"></strong>
-          <small id="userRole"></small>
-        </span>
-
-      </div>
-
-
-      <button
-        id="logout"
-        class="nav-item"
-        type="button"
-      >
-        ↪ &nbsp; Sign out
-      </button>
-
+      <div class="identity"><span id="avatar" class="avatar">A</span><span><strong id="userName"></strong><small id="userRole"></small></span></div>
+      <button id="logout" class="nav-item" type="button">↪ &nbsp; Sign out</button>
     </div>
-
   </aside>
-
-
-  <div
-    id="scrim"
-    class="scrim"
-  ></div>
-
-
+  <div id="scrim" class="scrim"></div>
   <div class="workspace">
-
     <header class="topbar">
-
-      <button
-        id="menu"
-        class="icon-button"
-        aria-label="Open menu"
-        type="button"
-      >
-        ☰
-      </button>
-
-
-      <div>
-
-        <small>AI360 CLUB</small>
-
-        <strong id="pageTitle">
-          Dashboard
-        </strong>
-
-      </div>
-
-
-      <button
-        id="dashboardShortcut"
-        class="subtle"
-        type="button"
-        hidden
-      >
-        ← Dashboard
-      </button>
-
+      <button id="menu" class="icon-button" aria-label="Open menu" type="button">☰</button>
+      <div><small>AI360 CLUB</small><strong id="pageTitle">Dashboard</strong></div>
+      <button id="dashboardShortcut" class="subtle" type="button" hidden>← Dashboard</button>
     </header>
-
-
     <main id="content"></main>
-
   </div>
-
 </div>
-
-
-<script
-  src="/script.js"
-  defer
-></script>
-
+<script src="/script.js" defer></script>
 </body>
 </html>

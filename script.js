@@ -107,47 +107,32 @@ $('#dashboardShortcut').onclick = () => navigate('dashboard');
 // ========================================
 
 let instructorSignup = false;
+let studentRegistrationPending = false;
 
+$('#studentTab').onclick = () => toggleLogin(false);
+$('#adminTab').onclick = () => toggleLogin(true);
 
-$('#studentTab').onclick = () => {
-  toggleLogin(false);
-};
-
-
-$('#adminTab').onclick = () => {
-  toggleLogin(true);
-};
-
+function resetStudentRegistration() {
+  studentRegistrationPending = false;
+  $('#studentGroupField').hidden = true;
+  $('#studentGroup').innerHTML = '';
+}
 
 function toggleLogin(admin) {
   state.adminLogin = admin;
-
   $('#studentFields').hidden = admin;
   $('#adminFields').hidden = !admin;
-
-  $('#studentTab').classList.toggle(
-    'selected',
-    !admin
-  );
-
-  $('#adminTab').classList.toggle(
-    'selected',
-    admin
-  );
-
+  $('#studentTab').classList.toggle('selected', !admin);
+  $('#adminTab').classList.toggle('selected', admin);
   $('#instructorAuthSwitch').hidden = !admin;
 
-  if (!admin) {
-    instructorSignup = false;
-  }
-
+  if (!admin) instructorSignup = false;
+  resetStudentRegistration();
   updateInstructorMode();
-
   $('#authError').textContent = '';
   $('#authSuccess').textContent = '';
   $('#authSuccess').hidden = true;
 }
-
 
 function updateInstructorMode() {
   const title = $('#instructorAuthTitle');
@@ -159,47 +144,26 @@ function updateInstructorMode() {
   const password = $('#password');
 
   if (!state.adminLogin) {
-    submit.textContent = 'Continue';
+    submit.textContent = studentRegistrationPending ? 'Join AI360' : 'Continue';
     return;
   }
 
   if (instructorSignup) {
-    title.textContent =
-      'Create Instructor Account';
-
+    title.textContent = 'Create Instructor Account';
     nameField.hidden = false;
     hint.hidden = false;
-
-    submit.textContent =
-      'Request access';
-
-    switchText.textContent =
-      'Already have an account?';
-
-    switchButton.textContent =
-      'Log in';
-
-    password.autocomplete =
-      'new-password';
-
+    submit.textContent = 'Request access';
+    switchText.textContent = 'Already have an account?';
+    switchButton.textContent = 'Log in';
+    password.autocomplete = 'new-password';
   } else {
-    title.textContent =
-      'Instructor Login';
-
+    title.textContent = 'Instructor Login';
     nameField.hidden = true;
     hint.hidden = true;
-
-    submit.textContent =
-      'Log in';
-
-    switchText.textContent =
-      "Don't have an account?";
-
-    switchButton.textContent =
-      'Sign up';
-
-    password.autocomplete =
-      'current-password';
+    submit.textContent = 'Log in';
+    switchText.textContent = "Don't have an account?";
+    switchButton.textContent = 'Sign up';
+    password.autocomplete = 'current-password';
   }
 
   $('#authError').textContent = '';
@@ -207,183 +171,99 @@ function updateInstructorMode() {
   $('#authSuccess').hidden = true;
 }
 
-
 $('#authSwitchButton').onclick = () => {
   instructorSignup = !instructorSignup;
-
   updateInstructorMode();
-
   $('#password').value = '';
-
-  if (instructorSignup) {
-    $('#signupName').focus();
-  } else {
-    $('#email').focus();
-  }
+  (instructorSignup ? $('#signupName') : $('#email')).focus();
 };
 
+$('#studentFullName').addEventListener('input', () => {
+  if (studentRegistrationPending) {
+    resetStudentRegistration();
+    updateInstructorMode();
+  }
+});
 
 $('#loginForm').onsubmit = async e => {
   e.preventDefault();
-
   $('#authError').textContent = '';
   $('#authSuccess').textContent = '';
   $('#authSuccess').hidden = true;
 
   try {
+    if (state.adminLogin && instructorSignup) {
+      const name = $('#signupName').value.trim();
+      const email = $('#email').value.trim();
+      const password = $('#password').value;
+      if (!name) throw Error('Please enter your name.');
+      if (!email) throw Error('Please enter your email.');
+      if (!password) throw Error('Please enter a password.');
 
-    // ====================================
-    // INSTRUCTOR SIGNUP
-    // ====================================
+      const data = await api('/api/session', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'instructor-signup', name, email, password })
+      });
 
-    if (
-      state.adminLogin &&
-      instructorSignup
-    ) {
-      const name =
-        $('#signupName').value.trim();
-
-      const email =
-        $('#email').value.trim();
-
-      const password =
-        $('#password').value;
-
-      if (!name) {
-        throw Error(
-          'Please enter your name.'
-        );
-      }
-
-      if (!email) {
-        throw Error(
-          'Please enter your email.'
-        );
-      }
-
-      if (!password) {
-        throw Error(
-          'Please enter a password.'
-        );
-      }
-
-      const data =
-        await api(
-          '/api/session',
-          {
-            method: 'POST',
-
-            body: JSON.stringify({
-              action: 'instructor-signup',
-              name,
-              email,
-              password
-            })
-          }
-        );
-
-      $('#authSuccess').textContent =
-        data.message ||
-        'Your account has been created and is waiting for approval.';
-
+      $('#authSuccess').textContent = data.message || 'Your account has been created and is waiting for approval.';
       $('#authSuccess').hidden = false;
-
       $('#signupName').value = '';
       $('#email').value = '';
       $('#password').value = '';
-
       return;
     }
-
-
-    // ====================================
-    // INSTRUCTOR LOGIN
-    // ====================================
 
     if (state.adminLogin) {
-      const email =
-        $('#email').value.trim();
+      const email = $('#email').value.trim();
+      const password = $('#password').value;
+      if (!email || !password) throw Error('Please enter your email and password.');
 
-      const password =
-        $('#password').value;
-
-      if (!email || !password) {
-        throw Error(
-          'Please enter your email and password.'
-        );
-      }
-
-      const data =
-        await api(
-          '/api/session',
-          {
-            method: 'POST',
-
-            body: JSON.stringify({
-              action: 'admin',
-              email,
-              password
-            })
-          }
-        );
-
+      const data = await api('/api/session', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'admin', email, password })
+      });
       state.user = data.user;
-
       start();
-
       return;
     }
 
+    const fullName = $('#studentFullName').value.trim();
+    if (!fullName || !fullName.includes(' ')) throw Error('Please enter your full name (first and last name).');
 
-    // ====================================
-    // STUDENT LOGIN
-    // ====================================
+    const data = await api('/api/session', {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'student',
+        fullName,
+        groupId: studentRegistrationPending ? $('#studentGroup').value : undefined
+      })
+    });
 
-    const code =
-      $('#code').value.trim();
-
-    if (!code) {
-      throw Error(
-        'Please enter your student code.'
-      );
+    if (data.registrationRequired) {
+      studentRegistrationPending = true;
+      $('#studentGroup').innerHTML = (data.groups || [])
+        .map(g => `<option value="${g.id}">${escape(g.name)}</option>`)
+        .join('');
+      $('#studentGroupField').hidden = false;
+      $('#authSubmit').textContent = 'Join AI360';
+      $('#authSuccess').textContent = `Welcome, ${data.fullName}! Choose your group to join AI360.`;
+      $('#authSuccess').hidden = false;
+      return;
     }
 
-    const data =
-      await api(
-        '/api/session',
-        {
-          method: 'POST',
-
-          body: JSON.stringify({
-            action: 'student',
-            code
-          })
-        }
-      );
-
     state.user = data.user;
-
     start();
-
   } catch (err) {
-    $('#authError').textContent =
-      err.message;
+    $('#authError').textContent = err.message;
   }
 };
 
-
 $('#logout').onclick = async () => {
   try {
-    await api(
-      '/api/session',
-      {
-        method: 'POST',
-
-        body: JSON.stringify({
-          action: 'logout'
-        })
-      }
-    );
+    await api('/api/session', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'logout' })
+    });
   } catch (err) {
     console.error(err);
   }
@@ -393,43 +273,31 @@ $('#logout').onclick = async () => {
   state.messages = [];
   state.instructors = [];
   state.active = null;
-
   $('#app').hidden = true;
   $('#auth').hidden = false;
-
-  $('#code').value = '';
+  $('#studentFullName').value = '';
   $('#email').value = '';
   $('#password').value = '';
   $('#signupName').value = '';
-
   instructorSignup = false;
-
   toggleLogin(false);
 };
 
-
 async function boot() {
   try {
-    const { user } =
-      await api('/api/session');
-
+    const { user } = await api('/api/session');
     if (user) {
       state.user = user;
-
       start();
     } else {
       $('#auth').hidden = false;
-
       toggleLogin(false);
     }
   } catch (err) {
     $('#auth').hidden = false;
-
-    $('#authError').textContent =
-      err.message;
+    $('#authError').textContent = err.message;
   }
 }
-
 
 boot();
 
@@ -1927,332 +1795,125 @@ async function activity() {
 // ========================================
 
 async function students() {
-  const [s, g] =
-    await Promise.all([
-      get('students'),
-      get('groups')
-    ]);
+  const [s, g, settings] = await Promise.all([
+    get('students'),
+    get('groups'),
+    get('registrationSettings')
+  ]);
 
-  state.students =
-    s.students;
-
-  state.groups =
-    g.groups;
-
+  state.students = s.students;
+  state.groups = g.groups;
+  const registrationOpen = settings.studentRegistrationOpen === true;
 
   $('#content').innerHTML = `
     <div class="page">
-
       <div class="page-head">
-
         <div>
-
-          <h1>
-            Students
-          </h1>
-
-          <p>
-            Create a private code for each student
-            and assign a group.
-          </p>
-
+          <h1>Students</h1>
+          <p>Students normally join by entering their full name. You can also add a student manually.</p>
         </div>
-
       </div>
 
+      <div class="panel registration-control">
+        <div>
+          <h2>New student registration</h2>
+          <p>${registrationOpen
+            ? 'Open — new students can enter their full name, choose their group, and join AI360.'
+            : 'Closed — existing students can still log in by full name, but new students cannot create a profile.'}</p>
+        </div>
+        <button id="registrationToggle" class="${registrationOpen ? 'primary' : 'subtle registration-closed'}" type="button">
+          ${registrationOpen ? 'Registration is ON' : 'Turn registration ON'}
+        </button>
+      </div>
 
       <div class="panel">
-
-        <h2>
-          Add student
-        </h2>
-
-        <form
-          id="studentForm"
-          class="inline-form"
-        >
-
+        <h2>Add student manually</h2>
+        <form id="studentForm" class="inline-form">
           <label>
-            Name
-
-            <input
-              id="studentName"
-              required
-              maxlength="80"
-              placeholder="Student name"
-            >
+            Full name
+            <input id="studentName" required maxlength="80" placeholder="First name + last name">
           </label>
-
-
           <label>
             Group
-
-            <select id="studentGroup">
-
-              ${
-                g.groups
-                  .map(
-                    x => `
-                      <option
-                        value="${x.id}"
-                      >
-                        ${escape(x.name)}
-                      </option>
-                    `
-                  )
-                  .join('')
-              }
-
+            <select id="studentAdminGroup">
+              ${g.groups.map(x => `<option value="${x.id}">${escape(x.name)}</option>`).join('')}
             </select>
-
           </label>
-
-
-          <button class="primary">
-            Create code
-          </button>
-
+          <button class="primary">Add student</button>
         </form>
-
-
-        <div
-          id="newCode"
-          class="code-result"
-          hidden
-        ></div>
-
-
-        <p
-          id="notice"
-          role="status"
-          class="error"
-        ></p>
-
+        <p id="notice" role="status" class="error"></p>
       </div>
-
 
       <div class="panel">
-
-        <h2>
-          Student roster
-        </h2>
-
+        <h2>Student roster</h2>
         <div class="table-wrap">
-
           <table>
-
-            <thead>
-
-              <tr>
-                <th>Name</th>
-                <th>Group</th>
-                <th>Status</th>
-                <th>Access</th>
-              </tr>
-
-            </thead>
-
-
+            <thead><tr><th>Name</th><th>Group</th><th>Status</th><th>Access</th></tr></thead>
             <tbody>
-
-              ${
-                s.students
-                  .map(
-                    x => `
-                      <tr>
-
-                        <td>
-                          ${escape(
-                            x.name
-                          )}
-                        </td>
-
-                        <td>
-
-                          <select
-                            data-group="${x.id}"
-                          >
-
-                            ${
-                              g.groups
-                                .map(
-                                  y => `
-                                    <option
-                                      value="${y.id}"
-                                      ${
-                                        y.id ===
-                                        x.group_id
-                                          ? 'selected'
-                                          : ''
-                                      }
-                                    >
-                                      ${escape(
-                                        y.name
-                                      )}
-                                    </option>
-                                  `
-                                )
-                                .join('')
-                            }
-
-                          </select>
-
-                        </td>
-
-
-                        <td>
-                          ${
-                            x.active
-                              ? 'Active'
-                              : 'Paused'
-                          }
-                        </td>
-
-
-                        <td>
-
-                          <button
-                            class="text-button"
-                            data-toggle="${x.id}"
-                          >
-                            ${
-                              x.active
-                                ? 'Pause'
-                                : 'Restore'
-                            }
-                          </button>
-
-                        </td>
-
-                      </tr>
-                    `
-                  )
-                  .join('') ||
-                `
-                  <tr>
-                    <td
-                      colspan="4"
-                      class="muted"
-                    >
-                      No students yet.
-                    </td>
-                  </tr>
-                `
-              }
-
+              ${s.students.map(x => `
+                <tr>
+                  <td>${escape(x.name)}</td>
+                  <td>
+                    <select data-group="${x.id}">
+                      ${g.groups.map(y => `<option value="${y.id}" ${y.id === x.group_id ? 'selected' : ''}>${escape(y.name)}</option>`).join('')}
+                    </select>
+                  </td>
+                  <td>${x.active ? 'Active' : 'Paused'}</td>
+                  <td><button class="text-button" data-toggle="${x.id}">${x.active ? 'Pause' : 'Restore'}</button></td>
+                </tr>
+              `).join('') || '<tr><td colspan="4" class="muted">No students yet.</td></tr>'}
             </tbody>
-
           </table>
-
         </div>
-
       </div>
-
     </div>
   `;
 
+  $('#registrationToggle').onclick = async () => {
+    try {
+      await post('setStudentRegistration', { open: !registrationOpen });
+      await students();
+    } catch (err) {
+      notice(err.message);
+    }
+  };
 
-  $('#studentForm').onsubmit =
-    async e => {
-      e.preventDefault();
+  $('#studentForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await post('addStudent', {
+        name: $('#studentName').value,
+        groupId: $('#studentAdminGroup').value
+      });
+      await students();
+    } catch (err) {
+      notice(err.message);
+    }
+  };
 
+  document.querySelectorAll('[data-toggle]').forEach(b => {
+    b.onclick = async () => {
+      const x = state.students.find(s => s.id === b.dataset.toggle);
       try {
-        const { code } =
-          await post(
-            'addStudent',
-            {
-              name:
-                $('#studentName').value,
-
-              groupId:
-                $('#studentGroup').value
-            }
-          );
-
+        await post('updateStudent', { id: x.id, groupId: x.group_id, active: !x.active });
         await students();
-
-        $('#newCode').hidden =
-          false;
-
-        $('#newCode').textContent =
-          `Student code: ${code} — copy and give it to the student now. It is shown only once.`;
-
       } catch (err) {
         notice(err.message);
       }
     };
+  });
 
-
-  document
-    .querySelectorAll(
-      '[data-toggle]'
-    )
-    .forEach(
-      b =>
-        (b.onclick = async () => {
-
-          const x =
-            state.students.find(
-              s =>
-                s.id ===
-                b.dataset.toggle
-            );
-
-          try {
-            await post(
-              'updateStudent',
-              {
-                id: x.id,
-                groupId:
-                  x.group_id,
-                active:
-                  !x.active
-              }
-            );
-
-            students();
-
-          } catch (err) {
-            notice(err.message);
-          }
-        })
-    );
-
-
-  document
-    .querySelectorAll(
-      '[data-group]'
-    )
-    .forEach(
-      s =>
-        (s.onchange = async () => {
-
-          const x =
-            state.students.find(
-              x =>
-                x.id ===
-                s.dataset.group
-            );
-
-          try {
-            await post(
-              'updateStudent',
-              {
-                id: x.id,
-                groupId:
-                  s.value,
-                active:
-                  x.active
-              }
-            );
-
-            students();
-
-          } catch (err) {
-            notice(err.message);
-          }
-        })
-    );
+  document.querySelectorAll('[data-group]').forEach(select => {
+    select.onchange = async () => {
+      const x = state.students.find(x => x.id === select.dataset.group);
+      try {
+        await post('updateStudent', { id: x.id, groupId: select.value, active: x.active });
+        await students();
+      } catch (err) {
+        notice(err.message);
+      }
+    };
+  });
 }
 
 
