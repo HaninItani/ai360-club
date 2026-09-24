@@ -1338,6 +1338,23 @@ function renderChat() {
 }
 
 
+function formatAssistantText(value) {
+  let html = escape(value || '');
+
+  // Lightweight, safe Markdown rendering for normal assistant replies.
+  html = html
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(/^[-*] (.+)$/gm, '<span class="md-list">• $1</span>')
+    .replace(/^\d+\. (.+)$/gm, '<span class="md-list">$&</span>')
+    .replace(/\n/g, '<br>');
+
+  return html;
+}
+
 function messageHtml(m) {
   return `
     <div class="message ${m.role}">
@@ -1396,8 +1413,11 @@ function paintMessages() {
       text &&
       state.messages[i]
     ) {
-      text.textContent =
-        state.messages[i].content;
+      if (state.messages[i].role === 'assistant') {
+        text.innerHTML = formatAssistantText(state.messages[i].content);
+      } else {
+        text.textContent = state.messages[i].content;
+      }
     }
   });
 
@@ -1422,96 +1442,109 @@ function scrollMessages() {
 
 async function sendMessage(e) {
   e.preventDefault();
-
   if (state.busy) return;
 
-  const prompt =
-    $('#prompt').value.trim();
-
+  const prompt = $('#prompt').value.trim();
   if (!prompt) return;
 
   state.busy = true;
+  const image = state.image;
 
-  const image =
-    state.image;
+  state.messages.push({ role: 'user', content: prompt });
+  state.messages.push({ role: 'assistant', content: '' });
 
-  state.messages.push({
-    role: 'user',
-    content: prompt
-  });
-
-  $('#chatMessages').innerHTML =
-    state.messages
-      .map(messageHtml)
-      .join('') +
-    `
-      <div
-        class="loading"
-        id="waiting"
-      >
-        AI360 is thinking…
-      </div>
-    `;
-
+  $('#chatMessages').innerHTML = state.messages.map(messageHtml).join('');
   paintMessages();
 
   $('#prompt').value = '';
   $('#send').disabled = true;
 
+  const assistantIndex = state.messages.length - 1;
+  const assistantRow = $('#chatMessages')?.querySelectorAll('.message')[assistantIndex];
+  const assistantText = assistantRow?.querySelector('.text');
+  if (assistantText) assistantText.innerHTML = '<span class="typing-dots">● ● ●</span>';
+
   try {
-    const data =
-      await api(
-        '/api/chat',
-        {
-          method: 'POST',
-
-          body: JSON.stringify({
-            message: prompt,
-            conversationId:
-              state.active,
-            wantsImage:
-              image
-          })
-        }
-      );
-
-    state.active =
-      data.conversationId;
-
-    state.messages.push({
-      role: 'assistant',
-      content: data.text,
-      image_url:
-        data.imagePath
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: prompt,
+        conversationId: state.active,
+        wantsImage: image
+      })
     });
 
+    if (!response.ok) {
+      let data = {};
+      try { data = await response.json(); } catch {}
+      throw Error(data.error || 'Request failed');
+    }
+
+    const type = response.headers.get('content-type') || '';
+
+    // Image requests still return a normal JSON response.
+    if (type.includes('application/json')) {
+      const data = await response.json();
+      state.active = data.conversationId;
+      state.messages[assistantIndex] = {
+        role: 'assistant',
+        content: data.text,
+        image_url: data.imagePath
+      };
+    } else {
+      // Text responses arrive incrementally and are painted as they stream.
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let receivedText = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+
+          if (event.type === 'start') {
+            state.active = event.conversationId;
+          } else if (event.type === 'delta') {
+            if (!receivedText) {
+              state.messages[assistantIndex].content = '';
+              receivedText = true;
+            }
+            state.messages[assistantIndex].content += event.delta;
+            if (assistantText) {
+              assistantText.innerHTML = formatAssistantText(state.messages[assistantIndex].content);
+            }
+            scrollMessages();
+          } else if (event.type === 'error') {
+            throw Error(event.error || 'The assistant could not complete that request.');
+          }
+        }
+      }
+    }
+
     await loadConversations();
-
     state.image = false;
-
     renderChat();
     paintMessages();
-
   } catch (err) {
-    state.messages.pop();
-
+    state.messages.splice(-2, 2);
     renderChat();
     paintMessages();
-
-    $('#prompt').value =
-      prompt;
-
+    $('#prompt').value = prompt;
     notice(err.message);
-
   } finally {
     state.busy = false;
-
-    const send =
-      $('#send');
-
-    if (send) {
-      send.disabled = false;
-    }
+    if ($('#send')) $('#send').disabled = false;
+    $('#prompt')?.focus();
   }
 }
 
