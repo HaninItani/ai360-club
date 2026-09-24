@@ -24,7 +24,7 @@ export default async function handler(req, res) {
       max_output_tokens: 700,
     };
     if (previousResponseId) payload.previous_response_id = previousResponseId;
-    if (wantsImage) payload.tools = [{ type: "image_generation", model: "gpt-image-2.5-flare", quality: "low", size: "1024x1024" }];
+    if (wantsImage) payload.tools = [{ type: "image_generation", quality: "low", size: "1024x1024" }];
     const response = await client.responses.create(payload);
     let imageUrl = null;
     for (const item of response.output || []) {
