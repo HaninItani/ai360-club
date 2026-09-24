@@ -1,6 +1,76 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#ffffff"><title>AI360 Club</title><link rel="stylesheet" href="/styles.css"></head><body>
-<section id="home" class="landing"><div class="landing-card"><img src="/public/ai360-logo.png" class="hero-logo" alt="AI360 Club"><h1>Welcome, AI Explorer</h1><p class="tagline">Ask. Create. Question. Discover.</p><div class="join"><input id="joinName" maxlength="24" autocomplete="off" placeholder="Enter your explorer name or code"><button class="btn primary" onclick="joinStudent()">Start →</button></div><p class="safe-note">Use your club name/code only. Never share passwords, phone numbers, addresses, or private information.</p><div class="entry-links"><button class="btn" onclick="openInstructor()">Instructor</button><button class="btn" onclick="openProjector()">Projector</button></div></div></section>
-<section id="student" class="app hidden"><header class="topbar"><div class="brand"><img src="/public/ai360-logo.png" class="logo" alt="AI360"><div class="brand-copy"><b>AI360 Assistant</b><span>AI has the tools. You make the rules.</span></div></div><div class="top-actions"><span id="studentPill" class="pill"></span><button class="btn" onclick="exitToHome()">Exit</button></div></header><div class="workspace"><aside class="sidebar"><button class="btn primary new-chat" onclick="clearChat()">＋ New chat</button><div class="side-section"><div class="side-label">AI360 Club</div><div class="side-note">Ask naturally and keep the conversation going. AI360 remembers the context of this chat until you start a new one.</div></div><div class="side-section"><div class="side-label">Remember</div><div class="side-note">AI can make mistakes. Check important facts and never share private information.</div></div></aside><main class="chat-shell"><div id="thread" class="thread"></div><div id="composerWrap" class="composer-wrap"><div class="composer"><textarea id="promptBox" rows="1" placeholder="Message AI360…" onkeydown="handleKey(event)" oninput="resizeBox(this)"></textarea><div class="toolrow"><div class="tools"><button id="imageBtn" class="tool" onclick="imageMode()">🎨 <span class="label">Create image</span></button><button class="tool" onclick="clearChat()">↻ <span class="label">New chat</span></button></div><button id="sendBtn" class="send" aria-label="Send" onclick="sendMessage()">↑</button></div></div><div class="disclaimer">AI can make mistakes. Check important information. Your instructor can review club activity.</div></div></main></div></section>
-<section id="instructor" class="admin hidden"><header class="topbar"><div class="brand"><img src="/public/ai360-logo.png" class="logo"><div class="brand-copy"><b>Instructor</b><span>Local prototype dashboard</span></div></div><button class="btn" onclick="exitToHome()">Exit</button></header><main class="adminmain"><div class="panel"><h2 style="margin-top:0">AI360 · AI Explorer</h2><div class="stats"><div class="stat"><span class="tiny">Explorers seen</span><b id="statStudents">0</b></div><div class="stat"><span class="tiny">Messages</span><b id="statMessages">0</b></div><div class="stat"><span class="tiny">Mode</span><b id="statMode">Open</b></div></div></div><div class="panel"><h3>Class controls</h3><div class="controls"><button class="btn primary" onclick="broadcast('🚨 AI Trap: AI can sound confident and still be wrong. Ask yourself: how can I check this?')">🚨 Send AI Trap</button><button class="btn" onclick="broadcast('🔐 Privacy Check: Never share passwords, addresses, phone numbers, or private information with AI.')">🔐 Privacy reminder</button><button class="btn" onclick="togglePause()" id="pauseBtn">⏸ Pause chat</button><button class="btn" onclick="resetSession()">Reset test data</button></div><p class="tiny">This dashboard currently stores activity in this browser only. Multi-device instructor monitoring comes with the database step.</p></div><div class="panel"><h3>Explorers</h3><div id="studentsGrid" class="students"></div></div></main><aside id="drawer" class="drawer hidden"><div class="drawer-head"><h3 id="drawerTitle">Explorer</h3><button class="btn" onclick="drawer.classList.add('hidden')">Close</button></div><div id="drawerLogs"></div></aside></section>
-<section id="projector" class="projector hidden"><div><img src="/public/ai360-logo.png" class="hero-logo"><h1>AI Explorer</h1><p class="tagline">AI has the tools. You make the rules.</p><div id="projectorAlert" class="alert hidden"></div><button class="btn" onclick="exitToHome()">Exit projector</button></div></section><div id="toast" class="toast hidden"></div>
-<script src="/script.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>AI360</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-top">
+        <a class="brand" href="#" aria-label="AI360 home">
+          <img src="/ai360-logo.png" alt="AI360 Club" />
+          <span>AI360</span>
+        </a>
+        <button class="icon-btn mobile-only" id="closeSidebar" aria-label="Close sidebar">×</button>
+      </div>
+      <button class="new-chat" id="newChat"><span>＋</span> New chat</button>
+      <div class="history-label">Chats</div>
+      <nav class="chat-history" id="chatHistory" aria-label="Chat history"></nav>
+      <div class="side-bottom">
+        <button class="profile-card" id="profileButton">
+          <span class="avatar" id="avatar">H</span>
+          <span class="profile-copy"><strong id="profileName">Hanin</strong><small id="profileGroup">AI360 member</small></span>
+          <span class="more">•••</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="sidebar-scrim" id="sidebarScrim"></div>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-btn mobile-only" id="openSidebar" aria-label="Open sidebar">☰</button>
+        <div class="top-title"><strong>AI360</strong><span id="chatTitle">New chat</span></div>
+        <div class="top-actions"><span class="status-dot"></span><span class="status-text">AI Assistant</span></div>
+      </header>
+
+      <section class="conversation" id="conversation">
+        <div class="welcome" id="welcome">
+          <div class="welcome-mark">✦</div>
+          <h1>What can I help with?</h1>
+          <p>Ask anything, create something, or continue an idea.</p>
+        </div>
+        <div class="messages" id="messages" aria-live="polite"></div>
+      </section>
+
+      <div class="composer-wrap">
+        <form class="composer" id="composer">
+          <textarea id="messageInput" rows="1" placeholder="Message AI360" aria-label="Message AI360"></textarea>
+          <div class="composer-footer">
+            <div class="composer-tools">
+              <button type="button" class="tool-btn" id="imageButton" title="Create an image"><span>◉</span> Image</button>
+            </div>
+            <button class="send-btn" id="sendButton" type="submit" aria-label="Send message">↑</button>
+          </div>
+        </form>
+        <p class="disclaimer">AI can make mistakes. Check important information and keep personal information private.</p>
+      </div>
+    </main>
+  </div>
+
+  <dialog class="profile-dialog" id="profileDialog">
+    <form method="dialog" class="profile-panel">
+      <div class="dialog-head"><div><h2>Profile</h2><p>This quietly helps AI360 match the level of explanation.</p></div><button class="icon-btn" value="cancel">×</button></div>
+      <label>Display name<input id="nameSetting" maxlength="24" value="Hanin" /></label>
+      <label>Learning level<select id="groupSetting"><option value="general">General</option><option value="grades12">Grades 1–2</option><option value="grades35">Grades 3–5</option></select></label>
+      <div class="dialog-actions"><button value="cancel" class="secondary">Cancel</button><button value="default" id="saveProfile" class="primary">Save</button></div>
+    </form>
+  </dialog>
+
+  <script src="/script.js" defer></script>
+</body>
+</html>
