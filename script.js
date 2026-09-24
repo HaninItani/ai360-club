@@ -1339,9 +1339,15 @@ function renderChat() {
 
 
 function formatAssistantText(value) {
-  // Models sometimes escape Markdown punctuation (for example `1\.`).
-  // Normalize those harmless escapes before HTML escaping so lists render naturally.
-  const normalized = String(value || '').replace(/\\([\\`*_[\]{}()#+\-.!>])/g, '$1');
+  // Normalize escaped Markdown punctuation, especially numbered lists like `1\.`.
+  let normalized = String(value || '');
+
+  // Remove one or more literal backslashes before Markdown punctuation.
+  normalized = normalized.replace(/\\+([`*_[\]{}()#+\-.!>])/g, '$1');
+
+  // Extra protection for escaped periods in numbered lists.
+  normalized = normalized.replace(/(^|\n)(\s*\d+)\\+\.\s+/g, '$1$2. ');
+
   let html = escape(normalized);
 
   // Lightweight, safe Markdown rendering for normal assistant replies.
@@ -1352,7 +1358,7 @@ function formatAssistantText(value) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/^[-*] (.+)$/gm, '<span class="md-list">• $1</span>')
-    .replace(/^\d+\. (.+)$/gm, '<span class="md-list">$&</span>')
+    .replace(/^(\d+)\.\s+(.+)$/gm, '<span class="md-list">$1. $2</span>')
     .replace(/\n/g, '<br>');
 
   return html;
