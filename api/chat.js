@@ -1,22 +1,15 @@
-import OpenAI from "openai";
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const BASE = `You are AI360, a general-purpose AI assistant used in a supervised elementary AI club. Behave like a normal, capable conversational AI: natural, direct, useful, and never childish or patronizing. Do not constantly mention the club, learning, safety, or the user's age. Answer the actual request first and preserve conversational context. Do not ask for or encourage sensitive personal data such as passwords, home address, phone number, school login, precise location, or private contact details. If sensitive personal information is shared, do not repeat it. When useful, encourage checking important facts because AI can make mistakes.`;
-function levelInstruction(group){if(group==='grades12')return `The user is in Grades 1–2. Quietly adapt vocabulary, sentence length, and explanation complexity when needed. Keep the tone normal and intelligent, not babyish.`;if(group==='grades35')return `The user is in Grades 3–5. Quietly adapt explanations to that level while preserving depth, reasoning, and a normal conversational tone.`;return `Use a normal general-audience conversational style.`}
-
-export default async function handler(req,res){
-  if(req.method!=="POST") return res.status(405).json({error:"Method not allowed"});
-  if(!process.env.OPENAI_API_KEY) return res.status(500).json({error:"OPENAI_API_KEY is not configured"});
-  try{
-    const {message,previousResponseId,wantsImage,gradeGroup}=req.body||{};
-    if(!message||typeof message!=="string") return res.status(400).json({error:"Message is required"});
-    const payload={model:"gpt-5.6-luna",instructions:`${BASE}\n\n${levelInstruction(gradeGroup)}`,input:message.slice(0,6000),max_output_tokens:900};
-    if(previousResponseId) payload.previous_response_id=previousResponseId;
-    // Image generation remains opt-in. If the configured model/tool is unavailable, text chat still works normally.
-    if(wantsImage) payload.tools=[{type:"image_generation"}];
-    const response=await client.responses.create(payload);
-    let imageUrl=null;
-    for(const item of response.output||[]){if(item.type==="image_generation_call"&&item.result){imageUrl=`data:image/png;base64,${item.result}`;break}}
-    return res.status(200).json({responseId:response.id,text:response.output_text||"",imageUrl});
-  }catch(err){console.error(err);return res.status(500).json({error:err?.message||"AI request failed"})}
-}
+import crypto from 'node:crypto';
+import OpenAI from 'openai';
+import {actor,db,fail} from '../lib/server.js';
+const BASE=`You are AI360, a capable general-purpose AI assistant in a supervised elementary AI club. Be natural, direct and useful. Preserve context. Never be childish or patronizing. Do not ask for private details including passwords, addresses, phone numbers or school logins. If shared, do not repeat them. Acknowledge uncertainty where appropriate.`;
+const level=g=>g==='grades12'?'Quietly use accessible vocabulary and short, clear explanations when helpful.':g==='grades35'?'Quietly adapt explanation complexity to Grades 3–5.':'Use a normal general-audience style.';
+export default async function handler(req,res){if(req.method!=='POST')return fail(res,'Method not allowed',405);try{const user=await actor(req);if(!user)return fail(res,'Sign in required',401);if(!process.env.OPENAI_API_KEY)return fail(res,'OpenAI is not configured',503);const {message,conversationId,wantsImage}=req.body||{};if(typeof message!=='string'||!message.trim()||message.length>6000)return fail(res,'Message must be 1–6000 characters',400);const client=db();let conv;
+ if(conversationId){const {data}=await client.from('conversations').select('*').eq('id',conversationId).single();if(!data||data.owner_id!==user.id||data.owner_role!==user.role)return fail(res,'Conversation not found',404);conv=data}
+ else {const {data,error}=await client.from('conversations').insert({owner_id:user.id,owner_role:user.role,title:message.trim().slice(0,54)}).select().single();if(error)throw error;conv=data}
+ const {data:prior,error:priorError}=await client.from('messages').select('role,content').eq('conversation_id',conv.id).order('created_at',{ascending:false}).limit(24);if(priorError)throw priorError;
+ const input=[...prior.reverse().map(m=>({role:m.role,content:m.content})),{role:'user',content:message.trim()}];
+ const ai=new OpenAI({apiKey:process.env.OPENAI_API_KEY});const response=await ai.responses.create({model:process.env.OPENAI_MODEL||'gpt-4.1-mini',instructions:BASE+'\n'+level(user.group),input,max_output_tokens:1000,...(wantsImage?{tools:[{type:'image_generation',size:'1024x1024',quality:'low'}]}:{})});
+ let imagePath=null;for(const item of response.output||[]){if(item.type==='image_generation_call'&&item.result){imagePath=`${conv.id}/${crypto.randomUUID()}.png`;const {error}=await client.storage.from('ai360-images').upload(imagePath,Buffer.from(item.result,'base64'),{contentType:'image/png'});if(error)throw error;break}}
+ const text=response.output_text|| (imagePath?'Here is the image.':'I could not generate a reply. Please try again.');const {error:saveError}=await client.from('messages').insert([{conversation_id:conv.id,role:'user',content:message.trim()},{conversation_id:conv.id,role:'assistant',content:text,image_url:imagePath}]);if(saveError)throw saveError;await client.from('conversations').update({updated_at:new Date().toISOString()}).eq('id',conv.id);
+ return res.status(200).json({conversationId:conv.id,text,imagePath});
+ }catch(e){console.error(e);return fail(res,'The assistant could not complete that request. Please try again.',500)}}
