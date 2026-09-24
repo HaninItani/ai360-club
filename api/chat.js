@@ -13,6 +13,13 @@ const level = g =>
 
 const write = (res, value) => res.write(JSON.stringify(value) + '\n');
 
+// Natural image requests should work without requiring the student to press a special button.
+const asksForImage = value => {
+  const text = String(value || '').toLowerCase();
+  return /\b(generate|create|make|draw|design|illustrate|show me|picture of|image of|photo of|poster of|logo of)\b/.test(text) &&
+    /\b(image|picture|photo|drawing|illustration|poster|logo|art|artwork|character|scene|wallpaper|sticker|icon)\b/.test(text);
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return fail(res, 'Method not allowed', 405);
 
@@ -67,26 +74,27 @@ export default async function handler(req, res) {
       max_output_tokens: 1400
     };
 
-    // Image generation remains a normal request because the image arrives as one completed asset.
-    if (wantsImage) {
-      const response = await ai.responses.create({
-        ...common,
-        tools: [{ type: 'image_generation', size: '1024x1024', quality: 'low' }]
+    // Generate images naturally when the student asks for one, or when the image button is enabled.
+    // A dedicated image model keeps the normal GPT-5.6 Luna chat fast and inexpensive.
+    const shouldGenerateImage = Boolean(wantsImage) || asksForImage(message);
+    if (shouldGenerateImage) {
+      const imageResponse = await ai.images.generate({
+        model: process.env.OPENAI_IMAGE_MODEL || 'gpt-image-2',
+        prompt: message.trim(),
+        size: '1024x1024',
+        quality: 'low'
       });
 
-      let imagePath = null;
-      for (const item of response.output || []) {
-        if (item.type === 'image_generation_call' && item.result) {
-          imagePath = `${conv.id}/${crypto.randomUUID()}.png`;
-          const { error } = await client.storage
-            .from('ai360-images')
-            .upload(imagePath, Buffer.from(item.result, 'base64'), { contentType: 'image/png' });
-          if (error) throw error;
-          break;
-        }
-      }
+      const base64 = imageResponse.data?.[0]?.b64_json;
+      if (!base64) throw new Error('Image model returned no image data');
 
-      const text = response.output_text || (imagePath ? 'Here is the image.' : 'I could not generate a reply. Please try again.');
+      const imagePath = `${conv.id}/${crypto.randomUUID()}.png`;
+      const { error: uploadError } = await client.storage
+        .from('ai360-images')
+        .upload(imagePath, Buffer.from(base64, 'base64'), { contentType: 'image/png' });
+      if (uploadError) throw uploadError;
+
+      const text = 'Here is the image I created for you.';
       const { error: saveError } = await client.from('messages').insert([
         { conversation_id: conv.id, role: 'user', content: message.trim() },
         { conversation_id: conv.id, role: 'assistant', content: text, image_url: imagePath }
