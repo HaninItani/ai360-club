@@ -2207,7 +2207,10 @@ async function classroom() {
               <div class="upload-progress"><span id="uploadProgressBar"></span></div>
               <span id="uploadProgressText">Uploading…</span>
             </div>
-            <button id="presentationUploadButton" class="primary wide" type="submit">Upload presentation</button>
+            <div class="upload-button-row">
+              <button id="presentationUploadButton" class="primary wide" type="submit">Upload presentation</button>
+              <button id="cancelPresentationUpload" class="secondary wide" type="button" hidden>Cancel upload</button>
+            </div>
             <p id="uploadNotice" class="form-notice" role="status"></p>
           </form>
         </div>
@@ -2239,44 +2242,74 @@ async function classroom() {
     }
   };
 
+  let activePresentationUpload = null;
+
+  const uploadPptxDirectly = (signedUrl, file, onProgress) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    activePresentationUpload = xhr;
+    xhr.open('PUT', signedUrl, true);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    xhr.upload.onprogress = event => {
+      if (event.lengthComputable) onProgress(event.loaded / event.total);
+    };
+    xhr.onload = () => {
+      activePresentationUpload = null;
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error('The PowerPoint upload failed. Please try again.'));
+    };
+    xhr.onerror = () => { activePresentationUpload = null; reject(new Error('The upload connection failed. Please try again.')); };
+    xhr.onabort = () => { activePresentationUpload = null; reject(new DOMException('Upload cancelled', 'AbortError')); };
+    xhr.send(file);
+  });
+
+  $('#cancelPresentationUpload').onclick = () => {
+    if (activePresentationUpload) activePresentationUpload.abort();
+  };
+
   $('#presentationUploadForm').onsubmit = async e => {
     e.preventDefault();
     const file = $('#presentationFile').files[0];
     const title = $('#presentationTitle').value.trim();
     const msg = $('#uploadNotice');
     const button = $('#presentationUploadButton');
+    const cancelButton = $('#cancelPresentationUpload');
     if (!file || !/\.pptx$/i.test(file.name)) { msg.textContent = 'Choose a .pptx PowerPoint file.'; return; }
     if (file.size > 100 * 1024 * 1024) { msg.textContent = 'The PowerPoint must be 100 MB or smaller.'; return; }
 
     button.disabled = true;
-    msg.textContent = 'Preparing upload…';
+    cancelButton.hidden = false;
+    msg.textContent = 'Preparing secure upload…';
     $('#uploadProgressWrap').hidden = false;
-    $('#uploadProgressBar').style.width = '15%';
+    $('#uploadProgressBar').style.width = '2%';
+    $('#uploadProgressText').textContent = 'Preparing…';
 
     try {
       const prepared = await post('createPresentationUpload', { title, fileName: file.name, fileSize: file.size });
-      $('#uploadProgressBar').style.width = '35%';
-      msg.textContent = 'Uploading PowerPoint…';
+      msg.textContent = 'Uploading directly to presentation storage…';
+      $('#uploadProgressText').textContent = '0%';
 
-      const uploadResponse = await fetch(prepared.upload.signedUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
-        body: file
+      await uploadPptxDirectly(prepared.upload.signedUrl, file, ratio => {
+        const pct = Math.max(1, Math.min(100, Math.round(ratio * 100)));
+        $('#uploadProgressBar').style.width = `${pct}%`;
+        $('#uploadProgressText').textContent = `${pct}%`;
       });
-      if (!uploadResponse.ok) throw new Error('The PowerPoint upload failed. Please try again.');
 
-      $('#uploadProgressBar').style.width = '85%';
+      cancelButton.hidden = true;
+      $('#uploadProgressBar').style.width = '100%';
+      $('#uploadProgressText').textContent = '100%';
       msg.textContent = 'Saving presentation…';
       await post('finishPresentationUpload', {
         title, fileName: file.name, fileSize: file.size, storagePath: prepared.upload.path
       });
-      $('#uploadProgressBar').style.width = '100%';
       msg.textContent = 'Presentation uploaded.';
       setTimeout(() => classroom(), 350);
     } catch (err) {
-      msg.textContent = err.message;
+      if (err?.name === 'AbortError') msg.textContent = 'Upload cancelled.';
+      else msg.textContent = err.message || 'The upload failed. Please try again.';
       button.disabled = false;
+      cancelButton.hidden = true;
       $('#uploadProgressBar').style.width = '0%';
+      $('#uploadProgressText').textContent = err?.name === 'AbortError' ? 'Cancelled' : 'Upload failed';
     }
   };
 
