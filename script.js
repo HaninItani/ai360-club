@@ -1392,6 +1392,11 @@ function messageHtml(m) {
                   m.image_url
                 )}"
               >
+              <a
+                class="image-download"
+                href="/api/image?path=${encodeURIComponent(m.image_url)}&download=1"
+                download="AI360-image.png"
+              >⬇ Download image</a>
             `
             : ''
         }
