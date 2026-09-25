@@ -3,96 +3,45 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AI360 · Session 1 — AI Explorer</title>
-  <link rel="stylesheet" href="/styles.css">
+  <title>AI360 Presentation</title>
+  <style>
+    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#07152f;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif;color:#fff;overflow:hidden}
+    .shell{height:100%;display:flex;flex-direction:column}.bar{height:64px;display:flex;align-items:center;gap:14px;padding:0 18px;background:#0d2147;border-bottom:1px solid rgba(255,255,255,.12)}
+    .brand{font-weight:900;letter-spacing:.08em}.title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:750}.spacer{flex:1}
+    button,a{border:1px solid rgba(255,255,255,.22);border-radius:10px;background:#183c78;color:#fff;padding:10px 14px;font:inherit;font-weight:750;text-decoration:none;cursor:pointer}.secondary{background:transparent}.viewer{flex:1;position:relative;background:#e8edf5}.viewer iframe{width:100%;height:100%;border:0;background:#fff}.loading,.fallback{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px;color:#13264b;background:#f4f7fb}.fallback{display:none}.fallback-card{max-width:620px;background:#fff;padding:34px;border-radius:18px;box-shadow:0 12px 45px rgba(20,40,80,.12)}.fallback h2{margin-top:0}.fallback p{color:#65728a;line-height:1.55}.fallback a{display:inline-block;background:#2757a3;margin-top:8px}.small{font-size:12px;color:#aebbd1}@media(max-width:650px){.brand,.small{display:none}.bar{padding:0 10px}.bar button,.bar a{padding:8px 10px;font-size:13px}}
+  </style>
 </head>
-<body class="presentation-page">
-  <header class="presentation-topbar">
-    <div>
-      <strong>Session 1 · AI Explorer</strong>
-      <span id="slideCounter">1 / 29</span>
-    </div>
-    <div class="presentation-top-actions">
-      <button id="privacyGame" class="presentation-game" hidden>🎮 Open Privacy Game ↗</button>
-      <button id="fullscreen">Full screen ⛶</button>
-      <button id="closePresentation">Close ✕</button>
-    </div>
-  </header>
-
-  <main class="presentation-stage" id="stage" aria-live="polite">
-    <button class="presentation-edge previous" id="previous" aria-label="Previous slide">‹</button>
-    <div class="slide-frame">
-      <img id="slideImage" src="/session1/page-01.png" alt="AI360 Session 1 slide 1">
-      <a id="privacyOverlay" class="slide-action-overlay privacy-overlay" href="https://joyful-gumdrop-1e6696.netlify.app/" target="_blank" rel="noopener" hidden aria-label="Start the Privacy Game"></a>
-    </div>
-    <button class="presentation-edge next" id="next" aria-label="Next slide">›</button>
+<body>
+<div class="shell">
+  <div class="bar">
+    <div class="brand">AI360</div><div id="title" class="title">Presentation</div><div class="spacer"></div>
+    <span class="small">PowerPoint viewer</span>
+    <a id="download" class="secondary" target="_blank" rel="noopener">Open PPTX</a>
+    <button id="full">⛶ Full screen</button>
+    <button id="close" class="secondary">Close</button>
+  </div>
+  <main class="viewer">
+    <div id="loading" class="loading">Loading presentation…</div>
+    <iframe id="frame" title="PowerPoint presentation" allowfullscreen hidden></iframe>
+    <div id="fallback" class="fallback"><div class="fallback-card"><h2>Presentation couldn't open in the web viewer</h2><p>Your PowerPoint is still safely stored in AI360. Open the original PPTX in PowerPoint to present it with full animations, fonts, audio and transitions.</p><a id="fallbackLink" target="_blank" rel="noopener">Open PowerPoint file</a></div></div>
   </main>
-
-  <footer class="presentation-controls">
-    <button id="prevBottom">← Previous</button>
-    <div class="presentation-dots" id="progress">Slide 1 of 29</div>
-    <button id="nextBottom">Next →</button>
-  </footer>
-
+</div>
 <script>
-(() => {
-  const TOTAL = 29;
-  let slide = 1;
-  const img = document.querySelector('#slideImage');
-  const counter = document.querySelector('#slideCounter');
-  const progress = document.querySelector('#progress');
-  const privacyOverlay = document.querySelector('#privacyOverlay');
-  const privacyGame = document.querySelector('#privacyGame');
-
-  function render() {
-    img.src = `/session1/page-${String(slide).padStart(2, '0')}.png`;
-    img.alt = `AI360 Session 1 slide ${slide}`;
-    counter.textContent = `${slide} / ${TOTAL}`;
-    progress.textContent = `Slide ${slide} of ${TOTAL}`;
-    document.querySelector('#previous').disabled = slide === 1;
-    document.querySelector('#prevBottom').disabled = slide === 1;
-    document.querySelector('#next').disabled = slide === TOTAL;
-    document.querySelector('#nextBottom').disabled = slide === TOTAL;
-    const isPrivacy = slide === 26;
-    privacyOverlay.hidden = !isPrivacy;
-    privacyGame.hidden = !isPrivacy;
-  }
-
-  function go(delta) {
-    slide = Math.max(1, Math.min(TOTAL, slide + delta));
-    render();
-  }
-
-  document.querySelector('#previous').onclick = () => go(-1);
-  document.querySelector('#prevBottom').onclick = () => go(-1);
-  document.querySelector('#next').onclick = () => go(1);
-  document.querySelector('#nextBottom').onclick = () => go(1);
-  document.querySelector('#fullscreen').onclick = async () => {
-    try {
-      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-      else await document.exitFullscreen();
-    } catch (_) {}
-  };
-  document.querySelector('#closePresentation').onclick = () => window.close();
-  privacyGame.onclick = () => window.open('https://joyful-gumdrop-1e6696.netlify.app/', '_blank', 'noopener');
-
-  document.addEventListener('keydown', e => {
-    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(1); }
-    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); go(-1); }
-    if (e.key === 'Home') { slide = 1; render(); }
-    if (e.key === 'End') { slide = TOTAL; render(); }
-  });
-
-  let touchX = null;
-  document.querySelector('#stage').addEventListener('touchstart', e => touchX = e.changedTouches[0].clientX, {passive:true});
-  document.querySelector('#stage').addEventListener('touchend', e => {
-    if (touchX === null) return;
-    const d = e.changedTouches[0].clientX - touchX;
-    if (Math.abs(d) > 60) go(d < 0 ? 1 : -1);
-    touchX = null;
-  }, {passive:true});
-
-  render();
+(async()=>{
+  const id=new URLSearchParams(location.search).get('id');
+  const loading=document.getElementById('loading'), frame=document.getElementById('frame'), fallback=document.getElementById('fallback');
+  if(!id){loading.textContent='Presentation not found.';return}
+  try{
+    const r=await fetch('/api/app?'+new URLSearchParams({action:'presentation',id}),{credentials:'same-origin'});
+    const data=await r.json(); if(!r.ok) throw new Error(data.error||'Could not load presentation');
+    const p=data.presentation; document.title=`${p.title} · AI360`; document.getElementById('title').textContent=p.title;
+    document.getElementById('download').href=p.publicUrl; document.getElementById('fallbackLink').href=p.publicUrl;
+    const viewer='https://view.officeapps.live.com/op/embed.aspx?src='+encodeURIComponent(p.publicUrl);
+    frame.src=viewer; frame.hidden=false; loading.style.display='none';
+    setTimeout(()=>{ /* Keep original-file fallback available through the top button. */ },12000);
+  }catch(e){loading.style.display='none';fallback.style.display='grid';fallback.querySelector('p').textContent=e.message}
+  document.getElementById('full').onclick=()=>document.documentElement.requestFullscreen?.();
+  document.getElementById('close').onclick=()=>window.close();
 })();
 </script>
 </body>
