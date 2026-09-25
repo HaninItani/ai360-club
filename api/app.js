@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { actor, db, fail } from '../lib/server.js';
 
 const ok = (res, data) => res.status(200).json(data);
@@ -91,6 +92,28 @@ export default async function handler(req, res) {
         return ok(res, { classroom: data });
       }
 
+      if (action === 'presentations') {
+        if (!admin) return fail(res, 'Forbidden', 403);
+        const { data, error } = await client
+          .from('presentations')
+          .select('id,title,file_name,storage_path,file_size,created_at,updated_at')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return ok(res, { presentations: data || [] });
+      }
+
+      if (action === 'presentation') {
+        if (!admin) return fail(res, 'Forbidden', 403);
+        const { data, error } = await client
+          .from('presentations')
+          .select('id,title,file_name,storage_path,file_size,created_at,updated_at')
+          .eq('id', req.query.id)
+          .single();
+        if (error || !data) return fail(res, 'Presentation not found', 404);
+        const { data: publicData } = client.storage.from('ai360-presentations').getPublicUrl(data.storage_path);
+        return ok(res, { presentation: { ...data, publicUrl: publicData.publicUrl } });
+      }
+
       return fail(res, 'Unknown action', 400);
     }
 
@@ -180,6 +203,54 @@ export default async function handler(req, res) {
         .single();
       if (error) throw error;
       return ok(res, { student: data });
+    }
+
+    if (action === 'createPresentationUpload') {
+      const title = String(body.title || '').trim().slice(0, 120);
+      const fileName = String(body.fileName || '').trim().slice(0, 180);
+      const fileSize = Number(body.fileSize || 0);
+      if (!title || !fileName.toLowerCase().endsWith('.pptx')) return fail(res, 'A title and .pptx file are required', 400);
+      if (!Number.isFinite(fileSize) || fileSize <= 0 || fileSize > 100 * 1024 * 1024) return fail(res, 'Presentation must be 100 MB or smaller', 400);
+
+      const safeName = fileName.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || 'presentation.pptx';
+      const storagePath = `${crypto.randomUUID()}-${safeName}`;
+      const { data: signed, error: signedError } = await client.storage
+        .from('ai360-presentations')
+        .createSignedUploadUrl(storagePath);
+      if (signedError) throw signedError;
+      return ok(res, { upload: { path: storagePath, token: signed.token, signedUrl: signed.signedUrl } });
+    }
+
+    if (action === 'finishPresentationUpload') {
+      const title = String(body.title || '').trim().slice(0, 120);
+      const fileName = String(body.fileName || '').trim().slice(0, 180);
+      const storagePath = String(body.storagePath || '').trim();
+      const fileSize = Number(body.fileSize || 0);
+      if (!title || !storagePath || !fileName.toLowerCase().endsWith('.pptx')) return fail(res, 'Invalid presentation', 400);
+
+      const { data: listed, error: listError } = await client.storage
+        .from('ai360-presentations')
+        .list('', { search: storagePath, limit: 10 });
+      if (listError) throw listError;
+      if (!(listed || []).some(x => x.name === storagePath)) return fail(res, 'Upload was not found. Please try again.', 400);
+
+      const { data, error } = await client.from('presentations').insert({
+        title, file_name: fileName, storage_path: storagePath, file_size: fileSize,
+        uploaded_by: user.id
+      }).select('id,title,file_name,storage_path,file_size,created_at,updated_at').single();
+      if (error) throw error;
+      return ok(res, { presentation: data });
+    }
+
+    if (action === 'deletePresentation') {
+      const id = String(body.id || '');
+      const { data: pres, error: findError } = await client.from('presentations').select('id,storage_path').eq('id', id).single();
+      if (findError || !pres) return fail(res, 'Presentation not found', 404);
+      const { error: storageError } = await client.storage.from('ai360-presentations').remove([pres.storage_path]);
+      if (storageError) throw storageError;
+      const { error } = await client.from('presentations').delete().eq('id', id);
+      if (error) throw error;
+      return ok(res, { deleted: true });
     }
 
     if (action === 'classroom') {
