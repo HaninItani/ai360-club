@@ -2114,97 +2114,199 @@ async function groups() {
 // ========================================
 
 async function classroom() {
-  state.classroom = (
-    await get('classroom')
-  ).classroom;
+  const [classroomData, presentationData] = await Promise.all([
+    get('classroom'),
+    get('presentations')
+  ]);
 
+  state.classroom = classroomData.classroom;
   const c = state.classroom;
+  const presentations = presentationData.presentations || [];
+
+  const presentationCards = presentations.length
+    ? presentations.map(p => `
+        <article class="presentation-card">
+          <div class="presentation-icon">P</div>
+          <div class="presentation-info">
+            <span class="eyebrow">POWERPOINT</span>
+            <h3>${escape(p.title)}</h3>
+            <p>${escape(p.file_name)}${p.file_size ? ` · ${formatFileSize(p.file_size)}` : ''}</p>
+            <div class="presentation-actions">
+              <button class="primary present-btn" data-presentation-id="${p.id}">▶ Present</button>
+              <button class="secondary download-presentation" data-presentation-id="${p.id}">Download PPTX</button>
+              <button class="danger-text delete-presentation" data-presentation-id="${p.id}">Delete</button>
+            </div>
+          </div>
+        </article>
+      `).join('')
+    : `<div class="presentation-empty">
+        <div class="presentation-empty-icon">▣</div>
+        <h3>No presentations yet</h3>
+        <p>Upload your first PowerPoint and it will stay here ready for class.</p>
+      </div>`;
 
   $('#content').innerHTML = `
-    <div class="page classroom-workspace">
-
-      <div class="page-head">
+    <div class="page">
+      <div class="page-head classroom-head">
         <div>
           <h1>Classroom</h1>
-          <p>Your AI360 teaching workspace — presentations, games and live projector messages.</p>
+          <p>Keep your sessions ready to present, then use Live Display whenever you need a quick classroom message.</p>
         </div>
+        <button id="uploadPresentation" class="primary">＋ Upload presentation</button>
       </div>
 
-      <div class="classroom-section-head">
-        <div>
-          <div class="section-label">SESSIONS & PRESENTATIONS</div>
-          <h2>Ready to teach</h2>
-        </div>
-      </div>
-
-      <div class="session-card">
-        <div class="session-cover">
-          <img src="/session1/page-01.png" alt="Session 1 — AI Explorer cover">
-        </div>
-        <div class="session-info">
-          <div class="session-kicker">SESSION 1</div>
-          <h2>AI Explorer</h2>
-          <p>Welcome to AI360 · Where AI Meets the Real World</p>
-          <div class="session-meta">
-            <span>▣ 29 slides</span>
-            <span>🎮 Interactive activities</span>
-          </div>
-          <div class="session-actions">
-            <button id="startPresentation" class="primary">▶ Start presentation</button>
-            <button id="openPresentation" class="secondary-button">Open in new tab ↗</button>
+      <section class="classroom-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">SESSIONS &amp; PRESENTATIONS</span>
+            <h2>Ready to teach</h2>
           </div>
         </div>
-      </div>
+        <div id="presentationList" class="presentation-list">${presentationCards}</div>
+      </section>
 
-      <div class="classroom-divider"></div>
-
-      <div class="classroom-section-head live-head">
-        <div>
-          <div class="section-label">LIVE DISPLAY</div>
-          <h2>Send something to the projector</h2>
-          <p>Use this for a quick instruction, question, countdown message or class announcement.</p>
+      <section class="panel classroom-live-panel">
+        <div class="section-heading live-heading">
+          <div>
+            <span class="eyebrow">LIVE DISPLAY</span>
+            <h2>Send something to the projector</h2>
+            <p>Use this for a quick instruction, timer message, question, or activity.</p>
+          </div>
+          <button id="project" class="secondary">Open projector ↗</button>
         </div>
-        <button id="project" class="secondary-button">Open live projector ↗</button>
-      </div>
 
-      <div class="panel live-display-panel">
         <form id="classForm">
-          <label>
-            Title
+          <label>Title
             <input id="classTitle" maxlength="120" value="${escape(c.title)}">
           </label>
-
-          <label>
-            Prompt or instructions
+          <label>Prompt or instructions
             <textarea id="classPrompt" rows="5" maxlength="2000"></textarea>
           </label>
-
           <button class="primary">Publish to projector</button>
           <p id="notice" role="status"></p>
         </form>
+      </section>
+
+      <div id="presentationModal" class="modal-backdrop" hidden>
+        <div class="upload-modal" role="dialog" aria-modal="true" aria-labelledby="uploadTitle">
+          <button id="closePresentationModal" class="modal-close" aria-label="Close">×</button>
+          <span class="eyebrow">NEW PRESENTATION</span>
+          <h2 id="uploadTitle">Upload PowerPoint</h2>
+          <p class="modal-copy">Add the original .pptx file. You won't need to upload slides or images separately.</p>
+          <form id="presentationUploadForm">
+            <label>Presentation title
+              <input id="presentationTitle" maxlength="120" placeholder="Session 1 — AI Explorer" required>
+            </label>
+            <label class="file-drop" for="presentationFile">
+              <span class="file-drop-icon">↑</span>
+              <strong>Choose a PowerPoint</strong>
+              <span id="presentationFileName">.pptx · up to 100 MB</span>
+              <input id="presentationFile" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" required>
+            </label>
+            <div id="uploadProgressWrap" class="upload-progress-wrap" hidden>
+              <div class="upload-progress"><span id="uploadProgressBar"></span></div>
+              <span id="uploadProgressText">Uploading…</span>
+            </div>
+            <button id="presentationUploadButton" class="primary wide" type="submit">Upload presentation</button>
+            <p id="uploadNotice" class="form-notice" role="status"></p>
+          </form>
+        </div>
       </div>
-    </div>
-  `;
+    </div>`;
 
   $('#classPrompt').value = c.prompt;
 
   $('#classForm').onsubmit = async e => {
     e.preventDefault();
     try {
-      await post('classroom', {
-        title: $('#classTitle').value,
-        prompt: $('#classPrompt').value
-      });
+      await post('classroom', { title: $('#classTitle').value, prompt: $('#classPrompt').value });
       notice('Projector updated.');
-    } catch (err) {
-      notice(err.message);
+    } catch (err) { notice(err.message); }
+  };
+
+  $('#project').onclick = () => window.open('/projector.html', 'ai360-projector');
+
+  const modal = $('#presentationModal');
+  $('#uploadPresentation').onclick = () => { modal.hidden = false; $('#presentationTitle').focus(); };
+  $('#closePresentationModal').onclick = () => { modal.hidden = true; };
+  modal.onclick = e => { if (e.target === modal) modal.hidden = true; };
+
+  $('#presentationFile').onchange = () => {
+    const file = $('#presentationFile').files[0];
+    $('#presentationFileName').textContent = file ? `${file.name} · ${formatFileSize(file.size)}` : '.pptx · up to 100 MB';
+    if (file && !$('#presentationTitle').value.trim()) {
+      $('#presentationTitle').value = file.name.replace(/\.pptx$/i, '').replace(/[-_]+/g, ' ');
     }
   };
 
-  const openDeck = () => window.open('/presentation.html', 'ai360-presentation');
-  $('#startPresentation').onclick = openDeck;
-  $('#openPresentation').onclick = openDeck;
-  $('#project').onclick = () => window.open('/projector.html', 'ai360-projector');
+  $('#presentationUploadForm').onsubmit = async e => {
+    e.preventDefault();
+    const file = $('#presentationFile').files[0];
+    const title = $('#presentationTitle').value.trim();
+    const msg = $('#uploadNotice');
+    const button = $('#presentationUploadButton');
+    if (!file || !/\.pptx$/i.test(file.name)) { msg.textContent = 'Choose a .pptx PowerPoint file.'; return; }
+    if (file.size > 100 * 1024 * 1024) { msg.textContent = 'The PowerPoint must be 100 MB or smaller.'; return; }
+
+    button.disabled = true;
+    msg.textContent = 'Preparing upload…';
+    $('#uploadProgressWrap').hidden = false;
+    $('#uploadProgressBar').style.width = '15%';
+
+    try {
+      const prepared = await post('createPresentationUpload', { title, fileName: file.name, fileSize: file.size });
+      $('#uploadProgressBar').style.width = '35%';
+      msg.textContent = 'Uploading PowerPoint…';
+
+      const uploadResponse = await fetch(prepared.upload.signedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+        body: file
+      });
+      if (!uploadResponse.ok) throw new Error('The PowerPoint upload failed. Please try again.');
+
+      $('#uploadProgressBar').style.width = '85%';
+      msg.textContent = 'Saving presentation…';
+      await post('finishPresentationUpload', {
+        title, fileName: file.name, fileSize: file.size, storagePath: prepared.upload.path
+      });
+      $('#uploadProgressBar').style.width = '100%';
+      msg.textContent = 'Presentation uploaded.';
+      setTimeout(() => classroom(), 350);
+    } catch (err) {
+      msg.textContent = err.message;
+      button.disabled = false;
+      $('#uploadProgressBar').style.width = '0%';
+    }
+  };
+
+  document.querySelectorAll('.present-btn').forEach(btn => {
+    btn.onclick = () => window.open(`/presentation.html?id=${encodeURIComponent(btn.dataset.presentationId)}`, 'ai360-presentation');
+  });
+
+  document.querySelectorAll('.download-presentation').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        const data = await get('presentation', { id: btn.dataset.presentationId });
+        window.open(data.presentation.publicUrl, '_blank');
+      } catch (err) { alert(err.message); }
+    };
+  });
+
+  document.querySelectorAll('.delete-presentation').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Delete this presentation from AI360?')) return;
+      try { await post('deletePresentation', { id: btn.dataset.presentationId }); await classroom(); }
+      catch (err) { alert(err.message); }
+    };
+  });
+}
+
+function formatFileSize(bytes) {
+  const n = Number(bytes || 0);
+  if (!n) return '';
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${(n / (1024 * 1024)).toFixed(n >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 }
 
 
