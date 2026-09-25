@@ -2118,125 +2118,93 @@ async function classroom() {
     await get('classroom')
   ).classroom;
 
-  const c =
-    state.classroom;
-
+  const c = state.classroom;
 
   $('#content').innerHTML = `
-    <div class="page">
+    <div class="page classroom-workspace">
 
       <div class="page-head">
-
         <div>
-
-          <h1>
-            Classroom
-          </h1>
-
-          <p>
-            Present a shared question or activity
-            on a projector.
-          </p>
-
+          <h1>Classroom</h1>
+          <p>Your AI360 teaching workspace — presentations, games and live projector messages.</p>
         </div>
-
-
-        <button
-          id="project"
-          class="primary"
-        >
-          Open projector ↗
-        </button>
-
       </div>
 
+      <div class="classroom-section-head">
+        <div>
+          <div class="section-label">SESSIONS & PRESENTATIONS</div>
+          <h2>Ready to teach</h2>
+        </div>
+      </div>
 
-      <div class="panel">
+      <div class="session-card">
+        <div class="session-cover">
+          <img src="/session1/page-01.png" alt="Session 1 — AI Explorer cover">
+        </div>
+        <div class="session-info">
+          <div class="session-kicker">SESSION 1</div>
+          <h2>AI Explorer</h2>
+          <p>Welcome to AI360 · Where AI Meets the Real World</p>
+          <div class="session-meta">
+            <span>▣ 29 slides</span>
+            <span>🎮 Interactive activities</span>
+          </div>
+          <div class="session-actions">
+            <button id="startPresentation" class="primary">▶ Start presentation</button>
+            <button id="openPresentation" class="secondary-button">Open in new tab ↗</button>
+          </div>
+        </div>
+      </div>
 
-        <h2>
-          Live display
-        </h2>
+      <div class="classroom-divider"></div>
 
+      <div class="classroom-section-head live-head">
+        <div>
+          <div class="section-label">LIVE DISPLAY</div>
+          <h2>Send something to the projector</h2>
+          <p>Use this for a quick instruction, question, countdown message or class announcement.</p>
+        </div>
+        <button id="project" class="secondary-button">Open live projector ↗</button>
+      </div>
+
+      <div class="panel live-display-panel">
         <form id="classForm">
-
           <label>
             Title
-
-            <input
-              id="classTitle"
-              maxlength="120"
-              value="${escape(
-                c.title
-              )}"
-            >
+            <input id="classTitle" maxlength="120" value="${escape(c.title)}">
           </label>
-
 
           <label>
             Prompt or instructions
-
-            <textarea
-              id="classPrompt"
-              rows="6"
-              maxlength="2000"
-            ></textarea>
-
+            <textarea id="classPrompt" rows="5" maxlength="2000"></textarea>
           </label>
 
-
-          <button class="primary">
-            Publish to projector
-          </button>
-
-
-          <p
-            id="notice"
-            role="status"
-          ></p>
-
+          <button class="primary">Publish to projector</button>
+          <p id="notice" role="status"></p>
         </form>
-
       </div>
-
     </div>
   `;
 
+  $('#classPrompt').value = c.prompt;
 
-  $('#classPrompt').value =
-    c.prompt;
+  $('#classForm').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      await post('classroom', {
+        title: $('#classTitle').value,
+        prompt: $('#classPrompt').value
+      });
+      notice('Projector updated.');
+    } catch (err) {
+      notice(err.message);
+    }
+  };
 
-
-  $('#classForm').onsubmit =
-    async e => {
-      e.preventDefault();
-
-      try {
-        await post(
-          'classroom',
-          {
-            title:
-              $('#classTitle').value,
-
-            prompt:
-              $('#classPrompt').value
-          }
-        );
-
-        notice(
-          'Projector updated.'
-        );
-
-      } catch (err) {
-        notice(err.message);
-      }
-    };
-
-
-  $('#project').onclick = () =>
-    window.open(
-      '/projector.html',
-      'ai360-projector'
-    );
+  const openDeck = () => window.open('/presentation.html', 'ai360-presentation');
+  $('#startPresentation').onclick = openDeck;
+  $('#openPresentation').onclick = openDeck;
+  $('#project').onclick = () => window.open('/projector.html', 'ai360-projector');
 }
 
 
