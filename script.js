@@ -2109,6 +2109,18 @@ async function groups() {
 }
 
 
+function resourceTypeLabel(fileName = '') {
+  const ext = String(fileName).split('.').pop().toLowerCase();
+  if (['ppt','pptx','key','odp'].includes(ext)) return 'PRESENTATION';
+  if (ext === 'pdf') return 'PDF';
+  if (['doc','docx','odt','rtf','txt','md'].includes(ext)) return 'DOCUMENT';
+  if (['png','jpg','jpeg','gif','webp','svg','bmp','heic'].includes(ext)) return 'IMAGE';
+  if (['xls','xlsx','csv','ods'].includes(ext)) return 'SPREADSHEET';
+  if (['mp4','mov','webm','m4v','avi'].includes(ext)) return 'VIDEO';
+  if (['mp3','wav','m4a','ogg','aac'].includes(ext)) return 'AUDIO';
+  return 'FILE';
+}
+
 // ========================================
 // CLASSROOM
 // ========================================
@@ -2128,12 +2140,12 @@ async function classroom() {
         <article class="presentation-card">
           <div class="presentation-icon">P</div>
           <div class="presentation-info">
-            <span class="eyebrow">POWERPOINT</span>
+            <span class="eyebrow">${escape(resourceTypeLabel(p.file_name))}</span>
             <h3>${escape(p.title)}</h3>
             <p>${escape(p.file_name)}${p.file_size ? ` · ${formatFileSize(p.file_size)}` : ''}</p>
             <div class="presentation-actions">
               <button class="primary present-btn" data-presentation-id="${p.id}">▶ Present</button>
-              <button class="secondary download-presentation" data-presentation-id="${p.id}">Download PPTX</button>
+              <button class="secondary download-presentation" data-presentation-id="${p.id}">Open / Download</button>
               <button class="danger-text delete-presentation" data-presentation-id="${p.id}">Delete</button>
             </div>
           </div>
@@ -2141,8 +2153,8 @@ async function classroom() {
       `).join('')
     : `<div class="presentation-empty">
         <div class="presentation-empty-icon">▣</div>
-        <h3>No presentations yet</h3>
-        <p>Upload your first PowerPoint and it will stay here ready for class.</p>
+        <h3>No classroom resources yet</h3>
+        <p>Upload a presentation, PDF, document, image, or other teaching file and it will stay here ready for class.</p>
       </div>`;
 
   $('#content').innerHTML = `
@@ -2152,14 +2164,14 @@ async function classroom() {
           <h1>Classroom</h1>
           <p>Keep your sessions ready to present, then use Live Display whenever you need a quick classroom message.</p>
         </div>
-        <button id="uploadPresentation" class="primary">＋ Upload presentation</button>
+        <button id="uploadPresentation" class="primary">＋ Add classroom resource</button>
       </div>
 
       <section class="classroom-section">
         <div class="section-heading">
           <div>
-            <span class="eyebrow">SESSIONS &amp; PRESENTATIONS</span>
-            <h2>Ready to teach</h2>
+            <span class="eyebrow">CLASSROOM RESOURCES</span>
+            <h2>Ready for class</h2>
           </div>
         </div>
         <div id="presentationList" class="presentation-list">${presentationCards}</div>
@@ -2190,25 +2202,25 @@ async function classroom() {
       <div id="presentationModal" class="modal-backdrop" hidden>
         <div class="upload-modal" role="dialog" aria-modal="true" aria-labelledby="uploadTitle">
           <button id="closePresentationModal" class="modal-close" aria-label="Close">×</button>
-          <span class="eyebrow">NEW PRESENTATION</span>
-          <h2 id="uploadTitle">Upload PowerPoint</h2>
-          <p class="modal-copy">Add the original .pptx file. You won't need to upload slides or images separately.</p>
+          <span class="eyebrow">NEW CLASSROOM RESOURCE</span>
+          <h2 id="uploadTitle">Upload a file</h2>
+          <p class="modal-copy">Upload a presentation, PDF, document, image, spreadsheet, audio, video, or other classroom file.</p>
           <form id="presentationUploadForm">
-            <label>Presentation title
+            <label>Resource title
               <input id="presentationTitle" maxlength="120" placeholder="Session 1 — AI Explorer" required>
             </label>
             <label class="file-drop" for="presentationFile">
               <span class="file-drop-icon">↑</span>
-              <strong>Choose a PowerPoint</strong>
-              <span id="presentationFileName">.pptx · up to 100 MB</span>
-              <input id="presentationFile" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" required>
+              <strong>Choose a file</strong>
+              <span id="presentationFileName">Any classroom file · up to 100 MB</span>
+              <input id="presentationFile" type="file" required>
             </label>
             <div id="uploadProgressWrap" class="upload-progress-wrap" hidden>
               <div class="upload-progress"><span id="uploadProgressBar"></span></div>
               <span id="uploadProgressText">Uploading…</span>
             </div>
             <div class="upload-button-row">
-              <button id="presentationUploadButton" class="primary wide" type="submit">Upload presentation</button>
+              <button id="presentationUploadButton" class="primary wide" type="submit">Upload resource</button>
               <button id="cancelPresentationUpload" class="secondary wide" type="button" hidden>Cancel upload</button>
             </div>
             <p id="uploadNotice" class="form-notice" role="status"></p>
@@ -2236,19 +2248,19 @@ async function classroom() {
 
   $('#presentationFile').onchange = () => {
     const file = $('#presentationFile').files[0];
-    $('#presentationFileName').textContent = file ? `${file.name} · ${formatFileSize(file.size)}` : '.pptx · up to 100 MB';
+    $('#presentationFileName').textContent = file ? `${file.name} · ${formatFileSize(file.size)}` : 'Any classroom file · up to 100 MB';
     if (file && !$('#presentationTitle').value.trim()) {
-      $('#presentationTitle').value = file.name.replace(/\.pptx$/i, '').replace(/[-_]+/g, ' ');
+      $('#presentationTitle').value = file.name.replace(/\.[^.]+$/i, '').replace(/[-_]+/g, ' ');
     }
   };
 
   let activePresentationUpload = null;
 
-  const uploadPptxDirectly = (signedUrl, file, onProgress) => new Promise((resolve, reject) => {
+  const uploadResourceDirectly = (signedUrl, file, onProgress) => new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     activePresentationUpload = xhr;
     xhr.open('PUT', signedUrl, true);
-    xhr.setRequestHeader('Content-Type', file.type || 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     xhr.upload.onprogress = event => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);
     };
@@ -2273,8 +2285,8 @@ async function classroom() {
     const msg = $('#uploadNotice');
     const button = $('#presentationUploadButton');
     const cancelButton = $('#cancelPresentationUpload');
-    if (!file || !/\.pptx$/i.test(file.name)) { msg.textContent = 'Choose a .pptx PowerPoint file.'; return; }
-    if (file.size > 100 * 1024 * 1024) { msg.textContent = 'The PowerPoint must be 100 MB or smaller.'; return; }
+    if (!file) { msg.textContent = 'Choose a file to upload.'; return; }
+    if (file.size > 100 * 1024 * 1024) { msg.textContent = 'The file must be 100 MB or smaller.'; return; }
 
     button.disabled = true;
     cancelButton.hidden = false;
@@ -2285,10 +2297,10 @@ async function classroom() {
 
     try {
       const prepared = await post('createPresentationUpload', { title, fileName: file.name, fileSize: file.size });
-      msg.textContent = 'Uploading directly to presentation storage…';
+      msg.textContent = 'Uploading directly to classroom storage…';
       $('#uploadProgressText').textContent = '0%';
 
-      await uploadPptxDirectly(prepared.upload.signedUrl, file, ratio => {
+      await uploadResourceDirectly(prepared.upload.signedUrl, file, ratio => {
         const pct = Math.max(1, Math.min(100, Math.round(ratio * 100)));
         $('#uploadProgressBar').style.width = `${pct}%`;
         $('#uploadProgressText').textContent = `${pct}%`;
