@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI360 · Session 1 — AI Explorer</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="presentation-page">
+  <header class="presentation-topbar">
+    <div>
+      <strong>Session 1 · AI Explorer</strong>
+      <span id="slideCounter">1 / 29</span>
+    </div>
+    <div class="presentation-top-actions">
+      <button id="privacyGame" class="presentation-game" hidden>🎮 Open Privacy Game ↗</button>
+      <button id="fullscreen">Full screen ⛶</button>
+      <button id="closePresentation">Close ✕</button>
+    </div>
+  </header>
+
+  <main class="presentation-stage" id="stage" aria-live="polite">
+    <button class="presentation-edge previous" id="previous" aria-label="Previous slide">‹</button>
+    <div class="slide-frame">
+      <img id="slideImage" src="/session1/page-01.png" alt="AI360 Session 1 slide 1">
+      <a id="privacyOverlay" class="slide-action-overlay privacy-overlay" href="https://joyful-gumdrop-1e6696.netlify.app/" target="_blank" rel="noopener" hidden aria-label="Start the Privacy Game"></a>
+    </div>
+    <button class="presentation-edge next" id="next" aria-label="Next slide">›</button>
+  </main>
+
+  <footer class="presentation-controls">
+    <button id="prevBottom">← Previous</button>
+    <div class="presentation-dots" id="progress">Slide 1 of 29</div>
+    <button id="nextBottom">Next →</button>
+  </footer>
+
+<script>
+(() => {
+  const TOTAL = 29;
+  let slide = 1;
+  const img = document.querySelector('#slideImage');
+  const counter = document.querySelector('#slideCounter');
+  const progress = document.querySelector('#progress');
+  const privacyOverlay = document.querySelector('#privacyOverlay');
+  const privacyGame = document.querySelector('#privacyGame');
+
+  function render() {
+    img.src = `/session1/page-${String(slide).padStart(2, '0')}.png`;
+    img.alt = `AI360 Session 1 slide ${slide}`;
+    counter.textContent = `${slide} / ${TOTAL}`;
+    progress.textContent = `Slide ${slide} of ${TOTAL}`;
+    document.querySelector('#previous').disabled = slide === 1;
+    document.querySelector('#prevBottom').disabled = slide === 1;
+    document.querySelector('#next').disabled = slide === TOTAL;
+    document.querySelector('#nextBottom').disabled = slide === TOTAL;
+    const isPrivacy = slide === 26;
+    privacyOverlay.hidden = !isPrivacy;
+    privacyGame.hidden = !isPrivacy;
+  }
+
+  function go(delta) {
+    slide = Math.max(1, Math.min(TOTAL, slide + delta));
+    render();
+  }
+
+  document.querySelector('#previous').onclick = () => go(-1);
+  document.querySelector('#prevBottom').onclick = () => go(-1);
+  document.querySelector('#next').onclick = () => go(1);
+  document.querySelector('#nextBottom').onclick = () => go(1);
+  document.querySelector('#fullscreen').onclick = async () => {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch (_) {}
+  };
+  document.querySelector('#closePresentation').onclick = () => window.close();
+  privacyGame.onclick = () => window.open('https://joyful-gumdrop-1e6696.netlify.app/', '_blank', 'noopener');
+
+  document.addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); go(1); }
+    if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); go(-1); }
+    if (e.key === 'Home') { slide = 1; render(); }
+    if (e.key === 'End') { slide = TOTAL; render(); }
+  });
+
+  let touchX = null;
+  document.querySelector('#stage').addEventListener('touchstart', e => touchX = e.changedTouches[0].clientX, {passive:true});
+  document.querySelector('#stage').addEventListener('touchend', e => {
+    if (touchX === null) return;
+    const d = e.changedTouches[0].clientX - touchX;
+    if (Math.abs(d) > 60) go(d < 0 ? 1 : -1);
+    touchX = null;
+  }, {passive:true});
+
+  render();
+})();
+</script>
+</body>
+</html>
